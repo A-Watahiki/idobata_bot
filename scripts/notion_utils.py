@@ -113,5 +113,7 @@ def query_database(filter_obj: dict) -> list:
         headers=HEADERS,
         json={"filter": filter_obj},
     )
+    if not res.ok:
+        print(f"[notion_utils] Notion API error {res.status_code}: {res.text}")
     res.raise_for_status()
     return res.json()["results"]
