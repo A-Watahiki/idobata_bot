@@ -1,0 +1,26 @@
+name: On Approve (Notion -> Discord)
+
+on:
+  repository_dispatch:
+    types: [notion_approved]
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Run on_approve.py
+        working-directory: scripts
+        env:
+          GITHUB_EVENT_PAYLOAD: ${{ toJson(github.event) }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_GUILD_ID: ${{ secrets.DISCORD_GUILD_ID }}
+          DISCORD_ANNOUNCE_CHANNEL_ID: ${{ secrets.DISCORD_ANNOUNCE_CHANNEL_ID }}
+          DISCORD_STAGE_CHANNEL_ID: ${{ secrets.DISCORD_STAGE_CHANNEL_ID }}
+        run: python on_approve.py

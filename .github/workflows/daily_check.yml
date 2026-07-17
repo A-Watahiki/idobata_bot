@@ -1,0 +1,31 @@
+name: Daily Material Check
+
+on:
+  schedule:
+    # 毎日 09:00 JST (00:00 UTC) に実行
+    - cron: "0 0 * * *"
+  workflow_dispatch: {}  # 手動実行もできるようにしておく
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Run daily_check.py
+        working-directory: scripts
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_GUILD_ID: ${{ secrets.DISCORD_GUILD_ID }}
+          DISCORD_ANNOUNCE_CHANNEL_ID: ${{ secrets.DISCORD_ANNOUNCE_CHANNEL_ID }}
+          DISCORD_STAGE_CHANNEL_ID: ${{ secrets.DISCORD_STAGE_CHANNEL_ID }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          MATERIAL_FOLDER_ID: ${{ secrets.MATERIAL_FOLDER_ID }}
+        run: python daily_check.py
