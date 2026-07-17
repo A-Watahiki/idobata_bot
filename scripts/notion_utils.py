@@ -59,6 +59,9 @@ def extract_fields(page: dict) -> dict:
     def email(name):
         return props[name].get("email")
 
+    def checkbox(name):
+        return props[name].get("checkbox", False)
+
     return {
         "page_id": page["id"],
         "title": title("タイトル"),
@@ -69,6 +72,7 @@ def extract_fields(page: dict) -> dict:
         "levels": multi_select("対象レベル"),
         "material_url": url("資料リンク"),
         "email": email("メールアドレス"),
+        "confirmation_mail_sent": checkbox("確認メール送信済み"),
     }
 
 
@@ -88,6 +92,14 @@ def set_discord_thread_url(page_id: str, thread_url: str):
     return update_page_properties(
         page_id,
         {"Discordスレッド": {"url": thread_url}},
+    )
+
+
+def set_confirmation_mail_sent(page_id: str, sent: bool = True):
+    """「確認メール送信済み」チェックボックスを更新する。"""
+    return update_page_properties(
+        page_id,
+        {"確認メール送信済み": {"checkbox": sent}},
     )
 
 
