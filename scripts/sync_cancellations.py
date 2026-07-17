@@ -44,6 +44,10 @@ def main():
                 thread_id,
                 f"❌ 「{event.get('summary')}」はキャンセルされました。Googleカレンダーの予定も削除しました。",
             )
+            discord_utils.post_message(
+                discord_utils.ANNOUNCE_CHANNEL_ID,
+                f"❌ 「{event.get('summary')}」はキャンセルされました。\nスレッド: {thread_url}",
+            )
 
 
 if __name__ == "__main__":

@@ -128,6 +128,7 @@ def build_todo_content(fields: dict, zoom_url: str, calendar_link: str) -> str:
         "https://drive.google.com/drive/folders/1NU_WFul8KPZP4pvkr-UU02sWtu4YavOU?usp=sharing"
     )
     mention = resolve_mention(fields.get("organizer_username"))
+    admin_mention = resolve_mention("xenamanex")
     return (
         f"{mention}\n\n"
         f"井戸端かいぎ「{fields.get('title')}」の開催が確定しました。以下、今後の流れです。\n\n"
@@ -139,6 +140,7 @@ def build_todo_content(fields: dict, zoom_url: str, calendar_link: str) -> str:
         f"□ 3. 開催日時はGoogleカレンダーでもご確認いただけます: {calendar_link}\n\n"
         f"□ 4. 前日と、開催30分前に「#🐸｜井戸端かいぎ」チャンネル全体へ、このスレッドへの"
         f"リンクつきでリマインダーが届きます。\n\n"
+        f"□ 5. やむを得ず開催をキャンセルする場合は、このスレッドで {admin_mention} をメンションしてお知らせください。\n\n"
         f"ご不明な点があれば、このスレッドまでお気軽にどうぞ。"
     )
 
