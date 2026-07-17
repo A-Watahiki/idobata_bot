@@ -10,6 +10,8 @@ Bot に必要な権限:
   Send Messages in Threads / Embed Links
 """
 import os
+from datetime import datetime
+
 import requests
 
 DISCORD_BOT_TOKEN = os.environ["DISCORD_BOT_TOKEN"]
@@ -22,26 +24,65 @@ HEADERS = {
     "Content-Type": "application/json",
 }
 
+WEEKDAY_JA = ["月", "火", "水", "木", "金", "土", "日"]
+
 
 def notion_page_url(page_id: str) -> str:
     """NotionのページIDから閲覧用URLを組み立てる。"""
     return f"https://www.notion.so/{page_id.replace('-', '')}"
 
 
-def build_announcement_content(fields: dict) -> dict:
-    """告知メッセージのembedを組み立てる。"""
-    levels = "・".join(fields.get("levels") or []) or "指定なし"
-    material = fields.get("material_url") or "(後日共有予定)"
+def format_datetime(datetime_str: str) -> str:
+    """ISO日時文字列を「2026年7月20日(月) 19:00」のような表記にする。"""
+    if not datetime_str:
+        return "調整中"
+    dt = datetime.fromisoformat(datetime_str)
+    weekday = WEEKDAY_JA[dt.weekday()]
+    return f"{dt.year}年{dt.month}月{dt.day}日({weekday}) {dt.strftime('%H:%M')}"
 
+
+def resolve_mention(username: str) -> str:
+    """Discordのユーザー名(@から始まる/始まらない)からメンション文字列 <@id> を作る。
+    サーバー内で見つからない場合はプレーンテキストのままにする。
+    """
+    if not username:
+        return "ご担当者"
+    handle = username.lstrip("@")
+    res = requests.get(
+        f"{BASE_URL}/guilds/{GUILD_ID}/members/search",
+        headers=HEADERS,
+        params={"query": handle, "limit": 5},
+    )
+    res.raise_for_status()
+    for member in res.json():
+        user = member.get("user", {})
+        if handle.lower() in (
+            (user.get("username") or "").lower(),
+            (user.get("global_name") or "").lower(),
+        ):
+            return f"<@{user['id']}>"
+    print(f"[discord_utils] WARNING: could not resolve Discord user for '{username}'")
+    return f"@{handle}"
+
+
+def build_shared_description(fields: dict, zoom_url: str) -> str:
+    """告知embedとGoogleカレンダーの説明欄で共有するセッション内容。"""
+    levels = "・".join(fields.get("levels") or []) or "指定なし"
+    return (
+        f"種別: {fields.get('category') or '未設定'}\n"
+        f"日時: {format_datetime(fields.get('datetime'))}\n"
+        f"発表者: {fields.get('presenter_name') or '未設定'}\n"
+        f"対象: {levels}\n"
+        f"概要:\n{fields.get('summary') or ''}\n\n"
+        f"Zoom会場: {zoom_url}"
+    )
+
+
+def build_announcement_content(fields: dict, zoom_url: str) -> dict:
+    """告知メッセージのembedを組み立てる。"""
     description = (
-        f"**種別**: {fields.get('category') or '未設定'}\n"
-        f"**日時**: {fields.get('datetime') or '調整中'}\n"
-        f"**発表者**: {fields.get('presenter') or '未設定'}\n"
-        f"**対象レベル**: {levels}\n"
-        f"**概要**:\n{fields.get('summary') or ''}\n\n"
-        f"**資料リンク**: {material}\n\n"
-        f"**Notionページ**: {notion_page_url(fields['page_id'])}\n\n"
-        f"※ 発表資料は、発表日の2日前までにこのスレッドとNotionページの両方で共有される予定です。"
+        f"{build_shared_description(fields, zoom_url)}\n\n"
+        f"**本イベント用のNotionページ**: {notion_page_url(fields['page_id'])}\n\n"
         f"このセッションに関するお問い合わせ・質問・感想は、このスレッドにご投稿ください。"
     )
 
@@ -57,13 +98,13 @@ def build_announcement_content(fields: dict) -> dict:
     }
 
 
-def create_announcement_thread(fields: dict) -> tuple[str, str]:
+def create_announcement_thread(fields: dict, zoom_url: str) -> tuple[str, str]:
     """告知メッセージを投稿し、そこからスレッドを作成する。戻り値は (スレッドURL, スレッドID)。"""
     # 1. 告知メッセージを投稿
     msg_res = requests.post(
         f"{BASE_URL}/channels/{ANNOUNCE_CHANNEL_ID}/messages",
         headers=HEADERS,
-        json=build_announcement_content(fields),
+        json=build_announcement_content(fields, zoom_url),
     )
     msg_res.raise_for_status()
     message_id = msg_res.json()["id"]
@@ -81,31 +122,31 @@ def create_announcement_thread(fields: dict) -> tuple[str, str]:
     return f"https://discord.com/channels/{GUILD_ID}/{thread_id}", thread_id
 
 
-def build_todo_content(fields: dict) -> str:
-    """承認直後にスレッドへ投稿するTODO案内。Zoomリンクはここには含めない
-    (直前リマインダーでのみ共有する運用のため)。
-    """
+def build_todo_content(fields: dict, zoom_url: str, calendar_link: str) -> str:
+    """承認直後にスレッドへ投稿するTODO案内。"""
     material_folder_url = (
         "https://drive.google.com/drive/folders/1NU_WFul8KPZP4pvkr-UU02sWtu4YavOU?usp=sharing"
     )
+    mention = resolve_mention(fields.get("organizer_username"))
     return (
-        f"{fields.get('presenter') or 'ご担当者'} 様\n\n"
-        f"「井戸端かいぎ」の開催が確定しました。以下、今後の流れです。\n\n"
+        f"{mention}\n\n"
+        f"井戸端かいぎ「{fields.get('title')}」の開催が確定しました。以下、今後の流れです。\n\n"
+        f"**Zoom会場**: {zoom_url}\n\n"
         f"□ 1. 発表当日の2日前までに、発表資料を下記フォルダにアップロードしてください。\n"
         f"　　資料共有用フォルダ: {material_folder_url}\n"
         f"　　(アップロードした「資料そのもののURL」を、このスレッドへの返信でご共有ください)\n\n"
         f"□ 2. 2日前までに資料URLの共有が確認できない場合、このスレッドにリマインダーが自動投稿されます。\n\n"
-        f"□ 3. 開催日時はGoogleカレンダーでもご確認いただけます。\n"
-        f"□ 4. 前日と、開催30分前にこのスレッドへリマインダーが届きます"
-        f"(30分前のリマインダーにZoomリンクが記載されます)。\n\n"
+        f"□ 3. 開催日時はGoogleカレンダーでもご確認いただけます: {calendar_link}\n\n"
+        f"□ 4. 前日と、開催30分前に「#🐸｜井戸端かいぎ」チャンネル全体へ、このスレッドへの"
+        f"リンクつきでリマインダーが届きます。\n\n"
         f"ご不明な点があれば、このスレッドまでお気軽にどうぞ。"
     )
 
 
-def post_message_to_thread(thread_id: str, content: str):
-    """既存スレッドにメッセージ(リマインダーなど)を投稿する。"""
+def post_message(channel_or_thread_id: str, content: str):
+    """チャンネルまたはスレッドにメッセージを投稿する。"""
     res = requests.post(
-        f"{BASE_URL}/channels/{thread_id}/messages",
+        f"{BASE_URL}/channels/{channel_or_thread_id}/messages",
         headers=HEADERS,
         json={"content": content},
     )

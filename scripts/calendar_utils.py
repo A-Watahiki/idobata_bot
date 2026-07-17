@@ -39,8 +39,17 @@ def _get_service():
     return build("calendar", "v3", credentials=creds)
 
 
-def create_event(fields: dict, zoom_url: str, thread_id: str, duration_minutes: int = 30) -> dict:
-    """Zoomリンクを含む予定をGoogleカレンダーに作成する。戻り値はイベントのid/htmlLink。"""
+def create_event(
+    fields: dict,
+    zoom_url: str,
+    thread_id: str,
+    thread_url: str,
+    description: str,
+    duration_minutes: int = 30,
+) -> dict:
+    """Zoomリンクを含む予定をGoogleカレンダーに作成する。戻り値はイベント本体
+    (event["htmlLink"] がその予定への直接リンクになる)。
+    """
     service = _get_service()
     calendar_id = os.environ["GOOGLE_CALENDAR_ID"]
 
@@ -50,6 +59,7 @@ def create_event(fields: dict, zoom_url: str, thread_id: str, duration_minutes: 
     private_props = {
         "notion_page_id": fields["page_id"],
         "discord_thread_id": thread_id,
+        "discord_thread_url": thread_url,
         "zoom_join_url": zoom_url,
     }
     if fields.get("series_name"):
@@ -57,7 +67,7 @@ def create_event(fields: dict, zoom_url: str, thread_id: str, duration_minutes: 
 
     body = {
         "summary": fields.get("title") or "井戸端かいぎ",
-        "description": f"{fields.get('summary') or ''}\n\nZoom: {zoom_url}",
+        "description": description,
         "location": zoom_url,
         "start": {"dateTime": start_dt.isoformat(), "timeZone": "Asia/Tokyo"},
         "end": {"dateTime": end_dt.isoformat(), "timeZone": "Asia/Tokyo"},
@@ -66,6 +76,43 @@ def create_event(fields: dict, zoom_url: str, thread_id: str, duration_minutes: 
 
     event = service.events().insert(calendarId=calendar_id, body=body).execute()
     return event
+
+
+def delete_event(event_id: str):
+    """予定を削除する(Notion側でキャンセル・削除された場合に呼ばれる)。"""
+    service = _get_service()
+    calendar_id = os.environ["GOOGLE_CALENDAR_ID"]
+    service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
+
+
+def list_future_events_with_notion_link(days_ahead: int = 200) -> list:
+    """今後開催予定の中で、notion_page_idが紐づいている予定を一覧する
+    (Notion側のキャンセル・削除同期に使う)。
+    """
+    service = _get_service()
+    calendar_id = os.environ["GOOGLE_CALENDAR_ID"]
+
+    now = datetime.utcnow()
+    time_min = now.isoformat() + "Z"
+    time_max = (now + timedelta(days=days_ahead)).isoformat() + "Z"
+
+    events = []
+    page_token = None
+    while True:
+        result = service.events().list(
+            calendarId=calendar_id,
+            timeMin=time_min,
+            timeMax=time_max,
+            singleEvents=True,
+            orderBy="startTime",
+            pageToken=page_token,
+        ).execute()
+        events.extend(result.get("items", []))
+        page_token = result.get("nextPageToken")
+        if not page_token:
+            break
+
+    return [e for e in events if e.get("extendedProperties", {}).get("private", {}).get("notion_page_id")]
 
 
 def find_series_zoom_url(series_name: str):
