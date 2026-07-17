@@ -66,9 +66,6 @@ def extract_fields(page: dict) -> dict:
         d = _prop(name, "date", None)
         return d["start"] if d else None
 
-    def number(name):
-        return _prop(name, "number", None)
-
     return {
         "page_id": page["id"],
         "title": title("タイトル"),
@@ -79,8 +76,7 @@ def extract_fields(page: dict) -> dict:
         "levels": multi_select("対象"),
         "material_url": url("資料リンク"),
         "frequency": select("開催頻度"),
-        "interval": number("間隔"),
-        "occurrence_count": number("回数"),
+        "series_name": rich_text("シリーズ名"),
     }
 
 
