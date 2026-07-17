@@ -53,8 +53,8 @@ def build_announcement_content(fields: dict) -> dict:
     }
 
 
-def create_announcement_thread(fields: dict) -> str:
-    """告知メッセージを投稿し、そこからスレッドを作成する。戻り値はスレッドのURL。"""
+def create_announcement_thread(fields: dict) -> tuple[str, str]:
+    """告知メッセージを投稿し、そこからスレッドを作成する。戻り値は (スレッドURL, スレッドID)。"""
     # 1. 告知メッセージを投稿
     msg_res = requests.post(
         f"{BASE_URL}/channels/{ANNOUNCE_CHANNEL_ID}/messages",
@@ -74,7 +74,24 @@ def create_announcement_thread(fields: dict) -> str:
     thread_res.raise_for_status()
     thread_id = thread_res.json()["id"]
 
-    return f"https://discord.com/channels/{GUILD_ID}/{thread_id}"
+    return f"https://discord.com/channels/{GUILD_ID}/{thread_id}", thread_id
+
+
+def build_todo_content(fields: dict) -> str:
+    """承認直後にスレッドへ投稿するTODO案内。"""
+    material_folder_url = (
+        "https://drive.google.com/drive/folders/1NU_WFul8KPZP4pvkr-UU02sWtu4YavOU?usp=sharing"
+    )
+    return (
+        f"{fields.get('presenter') or 'ご担当者'} 様\n\n"
+        f"「井戸端かいぎ」の開催が確定しました。以下、今後の流れです。\n\n"
+        f"□ 1. 発表当日の2日前までに、発表資料を下記フォルダにアップロードしてください。\n"
+        f"　　資料共有用フォルダ: {material_folder_url}\n"
+        f"　　(アップロードした「資料そのもののURL」を、このスレッドへの返信でご共有ください)\n\n"
+        f"□ 2. 2日前までに資料URLの共有が確認できない場合、このスレッドにリマインダーが自動投稿されます。\n\n"
+        f"□ 3. 前日には、Discordのステージイベント機能によるリマインダーが興味あり登録者に届きます。\n\n"
+        f"ご不明な点があれば、このスレッドまでお気軽にどうぞ。"
+    )
 
 
 def create_stage_event(fields: dict, duration_minutes: int = 90) -> str:

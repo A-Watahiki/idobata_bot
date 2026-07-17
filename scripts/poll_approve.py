@@ -28,8 +28,11 @@ def main():
         fields = extract_fields(page)
         print(f"[poll_approve] processing: {fields['title']}")
 
-        thread_url = discord_utils.create_announcement_thread(fields)
+        thread_url, thread_id = discord_utils.create_announcement_thread(fields)
         print(f"[poll_approve] thread created: {thread_url}")
+
+        discord_utils.post_message_to_thread(thread_id, discord_utils.build_todo_content(fields))
+        print(f"[poll_approve] TODO message posted to thread: {fields['title']}")
 
         try:
             if fields.get("datetime"):

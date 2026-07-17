@@ -1,4 +1,4 @@
-name: Poll Notion (Approve & Form Submit)
+name: Poll Notion (Approve)
 
 on:
   schedule:
@@ -25,11 +25,3 @@ jobs:
           DISCORD_ANNOUNCE_CHANNEL_ID: ${{ secrets.DISCORD_ANNOUNCE_CHANNEL_ID }}
           DISCORD_STAGE_CHANNEL_ID: ${{ secrets.DISCORD_STAGE_CHANNEL_ID }}
         run: python poll_approve.py
-      - name: Run poll_form_submit.py
-        working-directory: scripts
-        env:
-          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
-          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
-          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-        run: python poll_form_submit.py
