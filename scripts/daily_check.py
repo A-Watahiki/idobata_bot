@@ -42,7 +42,7 @@ def main():
 
         thread_prop = page["properties"].get("Discordスレッド", {}).get("url")
         if thread_prop:
-            discord_utils.post_message_to_thread(
+            discord_utils.post_message(
                 thread_id_from_url(thread_prop),
                 f"⏰ リマインダー: 発表まであと2日です。資料のアップロードをお願いします。"
                 f"（資料共有用フォルダのURLへのアップロード後、こちらのスレッドに資料URLをご返信ください）",
