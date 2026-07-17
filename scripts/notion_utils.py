@@ -8,7 +8,10 @@ import os
 import requests
 
 NOTION_TOKEN = os.environ["NOTION_TOKEN"]
-NOTION_VERSION = "2026-03-01"
+# 2022-06-28: databases/{id}/query を database_id で直接叩ける最後の安定版。
+# 2025-09-03以降はデータベースが複数の「データソース」に分割され、
+# クエリにはdata_source_idが必要になるため、この方式のままでは使えない。
+NOTION_VERSION = "2022-06-28"
 
 BASE_URL = "https://api.notion.com/v1"
 HEADERS = {
