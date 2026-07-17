@@ -76,8 +76,28 @@ def extract_fields(page: dict) -> dict:
         "levels": multi_select("対象"),
         "material_url": url("資料リンク"),
         "frequency": select("開催頻度"),
-        "series_name": rich_text("シリーズ名"),
+        "series_name": select("シリーズ名"),
     }
+
+
+def find_previous_series_page(series_name: str, exclude_page_id: str):
+    """同じ「シリーズ名」で、既にDiscordスレッドが作成済みの直近の行を探す。
+    2回目以降のフォーム入力を簡略化するため、タイトル・種別・概要・対象・担当者を
+    引き継ぐ元データとして使う。見つからなければNoneを返す。
+    """
+    pages = query_database(
+        {
+            "and": [
+                {"property": "シリーズ名", "select": {"equals": series_name}},
+                {"property": "Discordスレッド", "url": {"is_not_empty": True}},
+            ]
+        }
+    )
+    candidates = [extract_fields(p) for p in pages if p["id"] != exclude_page_id]
+    if not candidates:
+        return None
+    candidates.sort(key=lambda f: f.get("datetime") or "", reverse=True)
+    return candidates[0]
 
 
 def update_page_properties(page_id: str, properties: dict) -> dict:
@@ -89,6 +109,26 @@ def update_page_properties(page_id: str, properties: dict) -> dict:
     )
     res.raise_for_status()
     return res.json()
+
+
+def set_inherited_fields(page_id: str, fields: dict):
+    """シリーズの前回行から引き継いだタイトル・種別・概要・対象・担当者を
+    このページに書き戻す(公開ビューにも内容が表示されるようにするため)。
+    """
+    properties = {}
+    if fields.get("title"):
+        properties["タイトル"] = {"title": [{"text": {"content": fields["title"]}}]}
+    if fields.get("category"):
+        properties["種別"] = {"select": {"name": fields["category"]}}
+    if fields.get("presenter"):
+        properties["担当者"] = {"rich_text": [{"text": {"content": fields["presenter"]}}]}
+    if fields.get("summary"):
+        properties["概要"] = {"rich_text": [{"text": {"content": fields["summary"]}}]}
+    if fields.get("levels"):
+        properties["対象"] = {"multi_select": [{"name": v} for v in fields["levels"]]}
+    if not properties:
+        return None
+    return update_page_properties(page_id, properties)
 
 
 def set_discord_thread_url(page_id: str, thread_url: str):
