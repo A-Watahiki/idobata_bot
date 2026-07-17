@@ -2,10 +2,9 @@
 
 「確定」ステータスの発表のうち、開催日の2日前になっても
 資料リンクが未設定 & 資料共有フォルダにもファイルが見当たらないものに対し、
-発表者へのリマインダーメールと、Discordスレッドへの通知を送る。
+Discordのお知らせスレッドにリマインダーを投稿する。
 """
 from notion_utils import query_database, extract_fields, update_page_properties
-from mail_utils import send_mail
 import discord_utils
 import drive_utils
 
@@ -39,21 +38,7 @@ def main():
             continue
 
         # ここまで来たら未アップロードと判断し、リマインダーを送る
-        print(f"[daily_check] {fields['title']}: material NOT found, sending reminders")
-
-        if fields.get("email"):
-            send_mail(
-                to_address=fields["email"],
-                subject=f"【リマインダー】{fields['title']} の資料アップロードをお願いします",
-                body=(
-                    f"{fields.get('presenter') or 'ご担当者'} 様\n\n"
-                    f"「{fields['title']}」の開催まで2日となりましたが、"
-                    f"発表資料がまだ確認できていません。\n"
-                    f"お手数ですが、資料共有用フォルダにアップロードの上、\n"
-                    f"資料そのもののURLをDiscordのお知らせスレッドにご返信ください。\n\n"
-                    f"動物倫理かいぎ 運営"
-                ),
-            )
+        print(f"[daily_check] {fields['title']}: material NOT found, sending reminder")
 
         thread_prop = page["properties"].get("Discordスレッド", {}).get("url")
         if thread_prop:
