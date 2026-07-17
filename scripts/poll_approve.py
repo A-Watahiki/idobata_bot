@@ -3,14 +3,23 @@
 「ステータス」が「確定」になっているのに、まだ「Discordスレッド」が
 作成されていない(=空の)ページを検知し、以下を行う。
 
-  1. Zoomミーティングを作成(単発は毎回新規、複数回はシリーズ名が
+  1. 「複数回」シリーズの2回目以降で、タイトル・種別・概要・対象・担当者が
+     未入力の場合、同じシリーズ名の直近の行から引き継いでNotionに書き戻す
+     (発表者はシリーズ名と日時だけ入力すればよい)
+  2. Zoomミーティングを作成(単発は毎回新規、複数回はシリーズ名が
      一致する既存のZoomリンクがあれば再利用し、なければ「時間固定なし」
      ミーティングを新規作成)
-  2. Googleカレンダーに予定を作成(Zoomリンクを記載。NotionにはZoomリンクを書かない)
-  3. Discordにお知らせスレッドを作成してTODO案内を投稿(Zoomリンクは含めない)
-  4. スレッドURLをNotionのページに書き戻す
+  3. Googleカレンダーに予定を作成(Zoomリンクを記載。NotionにはZoomリンクを書かない)
+  4. Discordにお知らせスレッドを作成してTODO案内を投稿(Zoomリンクは含めない)
+  5. スレッドURLをNotionのページに書き戻す
 """
-from notion_utils import query_database, extract_fields, set_discord_thread_url
+from notion_utils import (
+    query_database,
+    extract_fields,
+    find_previous_series_page,
+    set_inherited_fields,
+    set_discord_thread_url,
+)
 import calendar_utils
 import discord_utils
 import zoom_utils
@@ -34,6 +43,19 @@ def main():
         if not fields.get("datetime"):
             print(f"[poll_approve] {fields['title']}: datetime not set yet, skipping")
             continue
+
+        if fields.get("frequency") == "複数回" and fields.get("series_name"):
+            missing = not all(
+                fields.get(k) for k in ("title", "category", "presenter", "summary", "levels")
+            )
+            if missing:
+                prev = find_previous_series_page(fields["series_name"], fields["page_id"])
+                if prev:
+                    for key in ("title", "category", "presenter", "summary", "levels"):
+                        if not fields.get(key):
+                            fields[key] = prev[key]
+                    set_inherited_fields(fields["page_id"], fields)
+                    print(f"[poll_approve] inherited fields from previous series entry: {fields['series_name']}")
 
         thread_url, thread_id = discord_utils.create_announcement_thread(fields)
         print(f"[poll_approve] thread created: {thread_url}")
