@@ -26,6 +26,11 @@ HEADERS = {
 }
 
 
+def notion_page_url(page_id: str) -> str:
+    """NotionのページIDから閲覧用URLを組み立てる。"""
+    return f"https://www.notion.so/{page_id.replace('-', '')}"
+
+
 def build_announcement_content(fields: dict) -> dict:
     """告知メッセージのembedを組み立てる。"""
     levels = "・".join(fields.get("levels") or []) or "指定なし"
@@ -38,6 +43,7 @@ def build_announcement_content(fields: dict) -> dict:
         f"**対象レベル**: {levels}\n"
         f"**概要**:\n{fields.get('summary') or ''}\n\n"
         f"**資料リンク**: {material}\n\n"
+        f"**Notionページ**: {notion_page_url(fields['page_id'])}\n\n"
         f"※ 発表資料は、発表日の2日前までにこのスレッドとNotionページの両方で共有される予定です。"
         f"このセッションに関するお問い合わせ・質問・感想は、このスレッドにご投稿ください。"
     )
@@ -46,6 +52,7 @@ def build_announcement_content(fields: dict) -> dict:
         "embeds": [
             {
                 "title": f"🐸 {fields.get('title') or '井戸端かいぎ'}",
+                "url": notion_page_url(fields["page_id"]),
                 "description": description,
                 "color": 0x6FCF97,
             }
