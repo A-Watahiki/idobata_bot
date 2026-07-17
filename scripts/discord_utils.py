@@ -120,6 +120,8 @@ def create_stage_event(fields: dict, duration_minutes: int = 90) -> str:
         headers=HEADERS,
         json=body,
     )
+    if not res.ok:
+        print(f"[discord_utils] Discord API error {res.status_code}: {res.text}")
     res.raise_for_status()
     event_id = res.json()["id"]
     return f"https://discord.com/events/{GUILD_ID}/{event_id}"
