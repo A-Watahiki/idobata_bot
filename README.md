@@ -17,7 +17,9 @@ Notionの「Send webhook」アクションは有料プラン限定のため、Gi
 1. `.github/workflows/poll.yml` が10分おきに自動実行され、
    - `poll_approve.py`: 「ステータス」が「確定」なのに「Discordスレッド」が
      未作成の行を検知し、
-     - Zoomミーティングを作成(単発 or 継続利用の定期ミーティング)
+     - Zoomミーティングを作成(単発は毎回新規。複数回は「シリーズ名」が
+       一致する既存のZoomリンクを再利用し、なければ新規に
+       「時間固定なし」ミーティングを作成)
      - Googleカレンダーに予定を作成(Zoomリンクを記載。Notionには書き込まない)
      - Discordにお知らせスレッドを作成し、TODO案内を投稿(Zoomリンクは含めない)
      - Notionにスレッドリンクを書き戻し
@@ -50,10 +52,17 @@ git push -u origin main
 
 動物倫理かいぎのZoomアカウント(`doubutsurinrikaigi@gmail.com`)で:
 
-1. https://marketplace.zoom.us/ にログイン →「Develop」→「Build App」
-2. 「Server-to-Server OAuth」を選択して作成
-3. Scopes に `meeting:write:meeting` (または `meeting:write`) を追加
-4. 発行される `Account ID` / `Client ID` / `Client Secret` を控えておく
+1. https://marketplace.zoom.us/ にログイン
+2. 右上の「Try new experience」トグルが**ON**になっている場合はOFFにする
+   (ONのままだと新UIになり「Develop」メニューが表示されません)
+3. 「Develop」→「Build App」(見当たらない場合は直接
+   `https://marketplace.zoom.us/develop/create` にアクセス)
+4. 「Server-to-Server OAuth」を選択して作成
+5. Scopes に `meeting:write:meeting` (または `meeting:write`) を追加
+6. 発行される `Account ID` / `Client ID` / `Client Secret` を控えておく
+
+「Server-to-Server OAuth」の選択肢が見当たらない場合は、そのZoomアカウントが
+管理者権限を持っているか確認してください。
 
 ### 3. Googleカレンダーのリフレッシュトークン発行(一度だけ手動)
 
@@ -117,8 +126,12 @@ Google Cloud Consoleでサービスアカウントを作成したら、そのメ
 
 「井戸端かいぎの予定表」データベースに以下のプロパティが必要です(名称は完全一致させてください):
 タイトル / 日時 / 種別 / 担当者 / ステータス / 概要 / 対象 / 資料リンク /
-録画 / 議事メモ / Discordスレッド(URL型) / 開催頻度(セレクト: 単発・日ごと・週ごと・月ごと) /
-間隔(数値、定期開催の場合の「Nおき」) / 回数(数値、定期開催の場合の合計開催回数)
+録画 / 議事メモ / Discordスレッド(URL型) / 開催頻度(セレクト: 単発・複数回) /
+シリーズ名(テキスト、「複数回」の場合のみ入力。同じシリーズ名の行同士で
+Zoomリンクを自動的に使い回す)
+
+「複数回」の輪読会などは、開催のたびにNotionの行を新規に作成し、
+1回目と同じ「シリーズ名」を入力してもらう運用です(日時はその回の日時のみ入力)。
 
 メールアドレスやZoomリンクなどの個人情報・秘匿情報プロパティは意図的に持たせていません。
 
@@ -141,8 +154,9 @@ GitHubリポジトリの Actions タブ → 該当ワークフロー → "Run wo
 - `discord_utils.py` のスレッド作成は、Botに該当チャンネルへのアクセス権限が必要です
 - `drive_utils.py` のファイル検索はタイトルの部分一致による簡易的なものです。ファイル名に発表タイトルの一部を含めてアップロードしてもらうよう、事前に周知してください
 - Zoom無料プランはグループミーティング(3名以上)が40分で自動終了します。「基本30分・最大40分」という運用方針はこの制限を踏まえたものです
-- `remind_events.py` のリマインダーは、Googleカレンダーの予定作成時に保存した
-  `extendedProperties`(NotionページID・DiscordスレッドID・ZoomリンクURL)を参照します。
-  そのためGoogleカレンダーの予定を手動で複製した場合、リマインダーは正しく機能しません
+- `remind_events.py` のリマインダーと、複数回シリーズのZoomリンク再利用は、
+  Googleカレンダーの予定作成時に保存した `extendedProperties`
+  (NotionページID・DiscordスレッドID・ZoomリンクURL・シリーズ名)を参照します。
+  そのためGoogleカレンダーの予定を手動で複製した場合、これらの機能は正しく動作しません
 - 本コードはひな形です。実際の運用前に、テスト用のNotionページ・Discordチャンネル・
   Zoomミーティング・Googleカレンダーで一通り動作確認することを強く推奨します

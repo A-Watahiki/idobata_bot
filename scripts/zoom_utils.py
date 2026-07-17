@@ -11,7 +11,7 @@
   Scopes に "meeting:write:meeting" (または meeting:write) を追加しておく。
 """
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import requests
 
@@ -20,13 +20,6 @@ CLIENT_ID = os.environ["ZOOM_CLIENT_ID"]
 CLIENT_SECRET = os.environ["ZOOM_CLIENT_SECRET"]
 
 DEFAULT_DURATION_MINUTES = 30
-
-# Notionの「開催頻度」プロパティの値 -> Zoom recurrence.type
-RECURRENCE_TYPE = {
-    "日ごと": 1,
-    "週ごと": 2,
-    "月ごと": 3,
-}
 
 
 def _get_access_token() -> str:
@@ -42,21 +35,19 @@ def _get_access_token() -> str:
 def create_meeting(fields: dict) -> str:
     """Notionの開催頻度に応じてZoomミーティングを作成し、join_urlを返す。
 
-    単発の場合は通常の予定済みミーティング、
-    定期の場合は「固定時間で繰り返す」ミーティングを作成する
-    (この場合、シリーズ全体で同じjoin_urlが使い回される)。
+    「単発」の場合は通常の予定済みミーティング。
+    「複数回」の場合は「時間固定なしの繰り返しミーティング」を作成する。
+    このタイプはシリーズを通じて同じjoin_urlを使い回せるため、
+    2回目以降の開催では新規作成せずこのURLを再利用する想定。
     """
     token = _get_access_token()
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
-    start_dt = datetime.fromisoformat(fields["datetime"])
     frequency = fields.get("frequency") or "単発"
 
     body = {
         "topic": (fields.get("title") or "井戸端かいぎ")[:200],
         "agenda": (fields.get("summary") or "")[:2000],
-        "start_time": start_dt.strftime("%Y-%m-%dT%H:%M:%S"),
-        "timezone": "Asia/Tokyo",
         "duration": DEFAULT_DURATION_MINUTES,
         "settings": {
             "join_before_host": True,
@@ -64,18 +55,13 @@ def create_meeting(fields: dict) -> str:
         },
     }
 
-    if frequency == "単発":
-        body["type"] = 2  # scheduled meeting
+    if frequency == "複数回":
+        body["type"] = 3  # recurring meeting, no fixed time
     else:
-        recurrence_type = RECURRENCE_TYPE.get(frequency)
-        if recurrence_type is None:
-            raise ValueError(f"unknown frequency: {frequency}")
-        body["type"] = 8  # recurring meeting with fixed time
-        body["recurrence"] = {
-            "type": recurrence_type,
-            "repeat_interval": int(fields.get("interval") or 1),
-            "end_times": int(fields.get("occurrence_count") or 1),
-        }
+        start_dt = datetime.fromisoformat(fields["datetime"])
+        body["type"] = 2  # scheduled meeting
+        body["start_time"] = start_dt.strftime("%Y-%m-%dT%H:%M:%S")
+        body["timezone"] = "Asia/Tokyo"
 
     res = requests.post(
         "https://api.zoom.us/v2/users/me/meetings",
