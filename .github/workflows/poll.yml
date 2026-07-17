@@ -1,8 +1,10 @@
-name: On Approve (Notion -> Discord)
+name: Poll Notion (Approve & Form Submit)
 
 on:
-  repository_dispatch:
-    types: [notion_approved]
+  schedule:
+    # 10分おきに実行
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}  # 手動実行もできるようにしておく
 
 jobs:
   run:
@@ -13,14 +15,21 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
-      - name: Run on_approve.py
+      - name: Run poll_approve.py
         working-directory: scripts
         env:
-          GITHUB_EVENT_PAYLOAD: ${{ toJson(github.event) }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           DISCORD_GUILD_ID: ${{ secrets.DISCORD_GUILD_ID }}
           DISCORD_ANNOUNCE_CHANNEL_ID: ${{ secrets.DISCORD_ANNOUNCE_CHANNEL_ID }}
           DISCORD_STAGE_CHANNEL_ID: ${{ secrets.DISCORD_STAGE_CHANNEL_ID }}
-        run: python on_approve.py
+        run: python poll_approve.py
+      - name: Run poll_form_submit.py
+        working-directory: scripts
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: python poll_form_submit.py

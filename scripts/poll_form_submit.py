@@ -1,12 +1,10 @@
-"""Notionフォーム送信時(Webhook送信)から呼ばれるスクリプト。
+"""GitHub Actionsのscheduleトリガーで定期実行するスクリプト(10分おき)。
 
-処理内容:
-  申込者にTODOリスト+リマインダー予告を記載した確認メールを送る。
+フォームから送信済み(=メールアドレスが入力済み)だが、まだ確認メールを
+送っていない(「確認メール送信済み」チェックボックスが未チェックの)ページを
+検知し、申込者にTODOリスト+リマインダー予告を記載した確認メールを送る。
 """
-import json
-import os
-
-from notion_utils import get_page, extract_fields
+from notion_utils import query_database, extract_fields, set_confirmation_mail_sent
 from mail_utils import send_mail
 
 MATERIAL_FOLDER_URL = "https://drive.google.com/drive/folders/1NU_WFul8KPZP4pvkr-UU02sWtu4YavOU?usp=sharing"
@@ -47,22 +45,26 @@ def build_body(fields: dict) -> str:
 
 
 def main():
-    payload = json.loads(os.environ["GITHUB_EVENT_PAYLOAD"])
-    page_id = payload["client_payload"]["page_id"]
-
-    page = get_page(page_id)
-    fields = extract_fields(page)
-
-    if not fields.get("email"):
-        print("[on_form_submit] no email address on this page, skipping")
-        return
-
-    send_mail(
-        to_address=fields["email"],
-        subject=f"【井戸端かいぎ】お申し込みを受け付けました:{fields.get('title')}",
-        body=build_body(fields),
+    pages = query_database(
+        {
+            "and": [
+                {"property": "メールアドレス", "email": {"is_not_empty": True}},
+                {"property": "確認メール送信済み", "checkbox": {"equals": False}},
+            ]
+        }
     )
-    print(f"[on_form_submit] confirmation mail sent to {fields['email']}")
+    print(f"[poll_form_submit] {len(pages)} unconfirmed submission(s) found")
+
+    for page in pages:
+        fields = extract_fields(page)
+
+        send_mail(
+            to_address=fields["email"],
+            subject=f"【井戸端かいぎ】お申し込みを受け付けました:{fields.get('title')}",
+            body=build_body(fields),
+        )
+        set_confirmation_mail_sent(fields["page_id"], True)
+        print(f"[poll_form_submit] confirmation mail sent to {fields['email']} ({fields.get('title')})")
 
 
 if __name__ == "__main__":
