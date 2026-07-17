@@ -73,7 +73,7 @@ def extract_fields(page: dict) -> dict:
         "category": select("種別"),
         "presenter": rich_text("担当者"),
         "summary": rich_text("概要"),
-        "levels": multi_select("対象レベル"),
+        "levels": multi_select("対象"),
         "material_url": url("資料リンク"),
     }
 
