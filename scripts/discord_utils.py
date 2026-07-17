@@ -4,20 +4,17 @@
   DISCORD_BOT_TOKEN         Botのトークン
   DISCORD_GUILD_ID          サーバー(ギルド)のID
   DISCORD_ANNOUNCE_CHANNEL_ID  「#🐸｜井戸端かいぎ」チャンネルのID
-  DISCORD_STAGE_CHANNEL_ID     ステージチャンネルのID
 
 Bot に必要な権限:
   View Channels / Send Messages / Create Public Threads /
-  Send Messages in Threads / Embed Links / Manage Events
+  Send Messages in Threads / Embed Links
 """
 import os
 import requests
-from datetime import datetime, timedelta
 
 DISCORD_BOT_TOKEN = os.environ["DISCORD_BOT_TOKEN"]
 GUILD_ID = os.environ["DISCORD_GUILD_ID"]
 ANNOUNCE_CHANNEL_ID = os.environ["DISCORD_ANNOUNCE_CHANNEL_ID"]
-STAGE_CHANNEL_ID = os.environ["DISCORD_STAGE_CHANNEL_ID"]
 
 BASE_URL = "https://discord.com/api/v10"
 HEADERS = {
@@ -85,7 +82,9 @@ def create_announcement_thread(fields: dict) -> tuple[str, str]:
 
 
 def build_todo_content(fields: dict) -> str:
-    """承認直後にスレッドへ投稿するTODO案内。"""
+    """承認直後にスレッドへ投稿するTODO案内。Zoomリンクはここには含めない
+    (直前リマインダーでのみ共有する運用のため)。
+    """
     material_folder_url = (
         "https://drive.google.com/drive/folders/1NU_WFul8KPZP4pvkr-UU02sWtu4YavOU?usp=sharing"
     )
@@ -96,35 +95,11 @@ def build_todo_content(fields: dict) -> str:
         f"　　資料共有用フォルダ: {material_folder_url}\n"
         f"　　(アップロードした「資料そのもののURL」を、このスレッドへの返信でご共有ください)\n\n"
         f"□ 2. 2日前までに資料URLの共有が確認できない場合、このスレッドにリマインダーが自動投稿されます。\n\n"
-        f"□ 3. 前日には、Discordのステージイベント機能によるリマインダーが興味あり登録者に届きます。\n\n"
+        f"□ 3. 開催日時はGoogleカレンダーでもご確認いただけます。\n"
+        f"□ 4. 前日と、開催30分前にこのスレッドへリマインダーが届きます"
+        f"(30分前のリマインダーにZoomリンクが記載されます)。\n\n"
         f"ご不明な点があれば、このスレッドまでお気軽にどうぞ。"
     )
-
-
-def create_stage_event(fields: dict, duration_minutes: int = 90) -> str:
-    """ステージチャンネルにスケジュールイベントを作成する。戻り値はイベントのURL。"""
-    start_dt = datetime.fromisoformat(fields["datetime"])
-    end_dt = start_dt + timedelta(minutes=duration_minutes)
-
-    body = {
-        "name": (fields.get("title") or "井戸端かいぎ")[:100],
-        "description": fields.get("summary") or "",
-        "scheduled_start_time": start_dt.isoformat(),
-        "scheduled_end_time": end_dt.isoformat(),
-        "privacy_level": 2,  # GUILD_ONLY
-        "entity_type": 1,  # STAGE_INSTANCE
-        "channel_id": STAGE_CHANNEL_ID,
-    }
-    res = requests.post(
-        f"{BASE_URL}/guilds/{GUILD_ID}/scheduled-events",
-        headers=HEADERS,
-        json=body,
-    )
-    if not res.ok:
-        print(f"[discord_utils] Discord API error {res.status_code}: {res.text}")
-    res.raise_for_status()
-    event_id = res.json()["id"]
-    return f"https://discord.com/events/{GUILD_ID}/{event_id}"
 
 
 def post_message_to_thread(thread_id: str, content: str):

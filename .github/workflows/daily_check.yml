@@ -23,7 +23,6 @@ jobs:
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           DISCORD_GUILD_ID: ${{ secrets.DISCORD_GUILD_ID }}
           DISCORD_ANNOUNCE_CHANNEL_ID: ${{ secrets.DISCORD_ANNOUNCE_CHANNEL_ID }}
-          DISCORD_STAGE_CHANNEL_ID: ${{ secrets.DISCORD_STAGE_CHANNEL_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           MATERIAL_FOLDER_ID: ${{ secrets.MATERIAL_FOLDER_ID }}
         run: python daily_check.py

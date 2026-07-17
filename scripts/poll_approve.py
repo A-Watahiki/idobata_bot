@@ -3,14 +3,15 @@
 「ステータス」が「確定」になっているのに、まだ「Discordスレッド」が
 作成されていない(=空の)ページを検知し、以下を行う。
 
-  1. Discordにお知らせスレッドを作成
-  2. Discordのステージチャンネルにイベントを作成
-  3. スレッドURLをNotionのページに書き戻す
+  1. Zoomミーティングを作成(単発 or 継続利用の定期ミーティング)
+  2. Googleカレンダーに予定を作成(Zoomリンクを記載。NotionにはZoomリンクを書かない)
+  3. Discordにお知らせスレッドを作成してTODO案内を投稿(Zoomリンクは含めない)
+  4. スレッドURLをNotionのページに書き戻す
 """
-import sys
-
 from notion_utils import query_database, extract_fields, set_discord_thread_url
+import calendar_utils
 import discord_utils
+import zoom_utils
 
 
 def main():
@@ -28,21 +29,21 @@ def main():
         fields = extract_fields(page)
         print(f"[poll_approve] processing: {fields['title']}")
 
+        if not fields.get("datetime"):
+            print(f"[poll_approve] {fields['title']}: datetime not set yet, skipping")
+            continue
+
         thread_url, thread_id = discord_utils.create_announcement_thread(fields)
         print(f"[poll_approve] thread created: {thread_url}")
 
+        zoom_url = zoom_utils.create_meeting(fields)
+        print(f"[poll_approve] zoom meeting created")
+
+        calendar_utils.create_event(fields, zoom_url, thread_id)
+        print(f"[poll_approve] calendar event created")
+
         discord_utils.post_message_to_thread(thread_id, discord_utils.build_todo_content(fields))
         print(f"[poll_approve] TODO message posted to thread: {fields['title']}")
-
-        try:
-            if fields.get("datetime"):
-                event_url = discord_utils.create_stage_event(fields)
-                print(f"[poll_approve] stage event created: {event_url}")
-            else:
-                print("[poll_approve] datetime not set yet, skipping stage event creation")
-        except Exception as e:  # noqa: BLE001
-            # イベント作成に失敗してもスレッド作成・書き戻しは続行する
-            print(f"[poll_approve] WARNING: failed to create stage event: {e}", file=sys.stderr)
 
         set_discord_thread_url(fields["page_id"], thread_url)
         print(f"[poll_approve] Notion page updated with thread URL: {fields['title']}")
