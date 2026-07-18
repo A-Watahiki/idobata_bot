@@ -20,8 +20,9 @@
 (rsvp_notify.py・remind_events.py参照)。
 
 承認済みイベントのページ編集は、Notion側の「更新情報をスレッドに通知する」
-ボタン(裏で「更新通知」チェックボックスをtrueにする)を押した時だけ
-Discordに通知される。編集しただけで自動通知はされない(sync_updates.py参照)。
+ボタン(裏で「更新通知回数」数値プロパティを+1する)を押した時だけDiscordに
+通知される。編集しただけで自動通知はされない。数値カウンタ方式のため、
+短時間に連続で押しても取りこぼされない(sync_updates.py参照)。
 """
 import os
 import requests
@@ -111,6 +112,10 @@ def _checkbox(props, name):
     return bool(_prop(props, name, "checkbox", False))
 
 
+def _number(props, name):
+    return _prop(props, name, "number", 0) or 0
+
+
 def _relation_ids(props, name):
     return [r["id"] for r in _prop(props, name, "relation", [])]
 
@@ -143,6 +148,7 @@ def extract_fields(page: dict) -> dict:
         "status": _select(props, "ステータス"),
         "submission_page_id": _rich_text(props, "申込みページID"),
         "requires_rsvp": _checkbox(props, "申込み必須"),
+        "notify_count": _number(props, "更新通知回数"),
     }
 
 
@@ -202,13 +208,6 @@ def set_discord_thread_url(page_id: str, thread_url: str):
 def mark_submission_processed(page_id: str):
     """「井戸端かいぎ 申込み」側のページに「転記済み」フラグを立てる。"""
     return update_page_properties(page_id, {"転記済み": {"checkbox": True}})
-
-
-def mark_notify_processed(page_id: str):
-    """「更新通知」ボタンが立てた「更新通知」チェックボックスをfalseに戻す
-    (処理完了の合図。ボタンは何度でも押し直して再通知できる)。
-    """
-    return update_page_properties(page_id, {"更新通知": {"checkbox": False}})
 
 
 def create_public_event_page(fields: dict) -> dict:
