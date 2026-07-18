@@ -28,6 +28,11 @@ HEADERS = {
 
 WEEKDAY_JA = ["月", "火", "水", "木", "金", "土", "日"]
 
+# 「申込み必須」イベント用の共有「参加申込み」フォームURL。
+# Notion側でフォーム(氏名・メールアドレス・参加イベントのリレーションを収集)を
+# 作成したら、実際のURLに書き換えてください。
+RSVP_FORM_URL = "https://www.notion.so/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
 
 def notion_page_url(page_id: str) -> str:
     """NotionのページIDから閲覧用URLを組み立てる。"""
@@ -67,28 +72,47 @@ def resolve_mention(username: str) -> str:
     return f"@{handle}"
 
 
-def build_shared_description(fields: dict, venue_url) -> str:
-    """告知embedとGoogleカレンダーの説明欄で共有するセッション内容。
-    venue_url(Zoomリンクなど、主催者が用意した会場)が未設定の場合はNoneでよい。
-    """
+def _base_description(fields: dict) -> str:
+    """会場情報を含まない、セッション内容の共通部分。"""
     levels = "・".join(fields.get("levels") or []) or "指定なし"
     organizer = fields.get("organizer_username")
     organizer_display = f"@{organizer.lstrip('@')}" if organizer else "未設定"
-    venue_display = venue_url or "主催者より別途ご案内予定"
     return (
         f"種別: {fields.get('category') or '未設定'}\n"
         f"日時: {format_datetime(fields.get('datetime'))}\n"
         f"主催者: {organizer_display}\n"
         f"対象: {levels}\n"
-        f"概要:\n{fields.get('summary') or ''}\n\n"
-        f"会場: {venue_display}"
+        f"概要:\n{fields.get('summary') or ''}"
     )
 
 
+def build_shared_description(fields: dict, venue_url) -> str:
+    """Googleカレンダーの説明欄で使うセッション内容。Googleカレンダーは
+    メンバー向けの非公開情報のため、「申込み必須」イベントでも実際の
+    venue_url(Zoomリンクなど)をそのまま表示してよい。未設定の場合はNoneでよい。
+    """
+    venue_display = venue_url or "主催者より別途ご案内予定"
+    return f"{_base_description(fields)}\n\n会場: {venue_display}"
+
+
 def build_announcement_content(fields: dict, venue_url) -> dict:
-    """告知メッセージのembedを組み立てる。"""
+    """告知メッセージのembedを組み立てる。このメッセージは公開チャンネルに
+    投稿されるため、「申込み必須」イベントではvenue_urlを一切表示せず、
+    代わりに参加申込みフォームへの案内を表示する。
+    """
+    if fields.get("requires_rsvp"):
+        body = (
+            f"{_base_description(fields)}\n\n"
+            f"⚠️ このイベントは**事前申込み制**です。参加をご希望の方は下記フォームから"
+            f"お申し込みください(氏名・メールアドレスが必要です)。会場URLは折り返し"
+            f"メールでご案内します。\n"
+            f"**参加申込みフォーム**: {RSVP_FORM_URL}"
+        )
+    else:
+        body = build_shared_description(fields, venue_url)
+
     description = (
-        f"{build_shared_description(fields, venue_url)}\n\n"
+        f"{body}\n\n"
         f"**本イベント用のNotionページ**: {notion_page_url(fields['page_id'])}\n\n"
         f"このセッションに関するお問い合わせ・質問・感想は、このスレッドにご投稿ください。"
     )
@@ -130,9 +154,12 @@ def create_announcement_thread(fields: dict, venue_url) -> tuple[str, str]:
 
 
 def build_todo_content(fields: dict, venue_url) -> str:
-    """承認直後にスレッドへ投稿するTODO案内。
-    venue_url(Zoomリンクなど、主催者が申込み時に用意した会場)が未設定の場合は
-    Noneでよく、その場合は用意を促す案内を先頭に追加する。
+    """承認直後にスレッドへ投稿するTODO案内。このメッセージは公開スレッド
+    (サーバーメンバーなら誰でも閲覧・参加可能)に投稿されるため、「申込み必須」
+    イベントではvenue_urlをここにも一切表示しない
+    (主催者自身が入力した値なので、改めて表示する必要もない)。
+    venue_urlが未設定(かつ申込み必須でもない)場合はNoneでよく、その場合は
+    用意を促す案内を先頭に追加する。
     """
     material_folder_url = (
         "https://drive.google.com/drive/folders/1NU_WFul8KPZP4pvkr-UU02sWtu4YavOU?usp=sharing"
@@ -140,8 +167,15 @@ def build_todo_content(fields: dict, venue_url) -> str:
     mention = resolve_mention(fields.get("organizer_username"))
     admin_mention = resolve_mention("xenamanex")
 
-    if venue_url:
+    if fields.get("requires_rsvp"):
+        venue_section = (
+            f"**会場URL**: 事前申込み制のため、参加申込みフォームからお申し込みいただいた方に"
+            f"個別にメールでご案内します(このスレッドには掲載されません)。\n\n"
+        )
+        reminder_note = "開催30分前のリマインダーには、事前申込み制である旨のみが記載されます(会場URLは記載されません)"
+    elif venue_url:
         venue_section = f"**会場URL**: {venue_url}\n\n"
+        reminder_note = "開催30分前のリマインダーには会場URLが記載されます"
     else:
         venue_section = (
             f"**会場URL**: (未設定)\n\n"
@@ -149,6 +183,7 @@ def build_todo_content(fields: dict, venue_url) -> str:
             f"返信でお知らせください。**ご自身での用意がどうしても難しい場合は、"
             f"{admin_mention} までご相談ください。**\n\n"
         )
+        reminder_note = "開催30分前のリマインダーには会場URLが記載されます"
 
     return (
         f"{mention}\n\n"
@@ -159,7 +194,7 @@ def build_todo_content(fields: dict, venue_url) -> str:
         f"　　(アップロードした「資料そのもののURL」を、このスレッドへの返信でご共有ください)\n\n"
         f"□ 2. 2日前までに資料URLの共有が確認できない場合、このスレッドにリマインダーが自動投稿されます。\n\n"
         f"□ 3. 前日と、開催30分前に「#🐸｜井戸端かいぎ」チャンネル全体へ、このスレッドへの"
-        f"リンクつきでリマインダーが届きます(開催30分前のリマインダーには会場URLが記載されます)。\n\n"
+        f"リンクつきでリマインダーが届きます({reminder_note})。\n\n"
         f"□ 4. 近日中に、Notionの「井戸端かいぎの予定表」データベースへの編集権限を運営から"
         f"付与します。ご自身のイベントページの内容(日時以外)を修正すると、30分以内にこの"
         f"スレッドへ更新通知が届きます。**日時を変更した場合は、代わりに「#🐸｜井戸端かいぎ」"

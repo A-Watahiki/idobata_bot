@@ -66,6 +66,7 @@ def create_event(
         "discord_thread_id": thread_id,
         "discord_thread_url": thread_url,
         "venue_url": venue_url or "",
+        "requires_rsvp": "true" if fields.get("requires_rsvp") else "false",
         "notion_last_edited_time": fields.get("last_edited_time") or "",
     }
     if fields.get("series_name"):
@@ -197,6 +198,24 @@ def find_series_venue_url(series_name: str):
         return None
     props = items[0].get("extendedProperties", {}).get("private", {})
     return props.get("venue_url") or None
+
+
+def find_event_by_notion_page_id(notion_page_id: str):
+    """指定したNotionページIDに紐づくカレンダー予定を1件探す。
+    見つからなければNoneを返す(=このイベントはまだ承認・カレンダー登録されて
+    いない。rsvp_notify.pyが「申込み必須」イベントの会場URLを引くために使う)。
+    """
+    service = _get_service()
+    calendar_id = os.environ["GOOGLE_CALENDAR_ID"]
+
+    result = service.events().list(
+        calendarId=calendar_id,
+        privateExtendedProperty=f"notion_page_id={notion_page_id}",
+        maxResults=1,
+        singleEvents=True,
+    ).execute()
+    items = result.get("items", [])
+    return items[0] if items else None
 
 
 def list_upcoming_instances(minutes_from_now_start: int, minutes_from_now_end: int) -> list:
