@@ -1,4 +1,4 @@
-"""GitHub Actionsのscheduleトリガーで定期実行するスクリプト(10分おき、poll.ymlから実行)。
+"""GitHub Actionsのscheduleトリガーで定期実行するスクリプト(5分おき、poll.ymlから実行)。
 
 承認済み(Discordスレッド作成済み)のイベントについて、Notion側の
 「更新情報をスレッドに通知する」ボタンが押されたかどうかを検知する。

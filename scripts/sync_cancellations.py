@@ -1,4 +1,4 @@
-"""GitHub Actionsのscheduleトリガーで定期実行するスクリプト(10分おき、poll.ymlから実行)。
+"""GitHub Actionsのscheduleトリガーで定期実行するスクリプト(5分おき、poll.ymlから実行)。
 
 Googleカレンダーの今後の予定のうち、Notionの行と紐づいている(notion_page_id
 つき)ものを一覧し、対応するNotionページが
