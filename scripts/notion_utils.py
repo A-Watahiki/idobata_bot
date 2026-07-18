@@ -211,7 +211,7 @@ def mark_submission_processed(page_id: str):
 
 def create_public_event_page(fields: dict) -> dict:
     """申込み内容(メールアドレス・会場URLを除く)から、公開の「井戸端かいぎの
-    予定表」に新しい行を作成する。ステータスは「募集中」で作成し、運営の
+    予定表」に新しい行を作成する。ステータスは「承認待ち」で作成し、運営の
     確認・承認を待つ。
 
     「申込みページID」には申込み元ページのIDだけを書き戻す(個人情報を含まない
@@ -219,7 +219,7 @@ def create_public_event_page(fields: dict) -> dict:
     """
     properties = {
         "タイトル": {"title": [{"text": {"content": fields.get("title") or ""}}]},
-        "ステータス": {"select": {"name": "募集中"}},
+        "ステータス": {"select": {"name": "承認待ち"}},
         "申込みページID": {"rich_text": [{"text": {"content": fields["page_id"]}}]},
         "申込み必須": {"checkbox": bool(fields.get("requires_rsvp"))},
     }
