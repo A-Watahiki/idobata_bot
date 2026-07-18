@@ -31,7 +31,7 @@ WEEKDAY_JA = ["月", "火", "水", "木", "金", "土", "日"]
 # 「申込み必須」イベント用の共有「参加申込み」フォームURL。
 # Notion側でフォーム(氏名・メールアドレス・参加イベントのリレーションを収集)を
 # 作成したら、実際のURLに書き換えてください。
-RSVP_FORM_URL = "https://www.notion.so/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+RSVP_FORM_URL = "https://oval-open-d31.notion.site/3a1530487f0a8016a173c7a08748883d?pvs=105"
 
 
 def notion_page_url(page_id: str) -> str:
