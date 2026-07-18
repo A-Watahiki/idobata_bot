@@ -2,3 +2,5 @@ __pycache__/
 refresh_token.py
 .venv/
 README.md
+node_modules/
+.vercel/

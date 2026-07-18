@@ -2,9 +2,21 @@ name: Poll Notion (Approve & Reminders)
 
 on:
   schedule:
-    # 5分おきに実行
+    # 5分おきに実行(GitHubのcronは遅延・スキップが起こりうるため、
+    # フォーム提出やステータス変更などの即応はNotion Webhook経由の
+    # repository_dispatch(下記)が担当する。cronは主に時刻ベースの
+    # リマインダー(remind_events.py)と、Webhook取りこぼしの保険。)
     - cron: "*/5 * * * *"
   workflow_dispatch: {}  # 手動実行もできるようにしておく
+  repository_dispatch:
+    # Vercelのwebhook-proxy(Notion Webhookの受け口)から叩かれる。
+    types: [notion-webhook]
+
+# 同時に複数のポーリングが走って二重にスレッド作成しないよう直列化する
+# (実行中のものはキャンセルせず、後続を1つだけ待たせる)。
+concurrency:
+  group: poll-notion
+  cancel-in-progress: false
 
 jobs:
   run:
