@@ -72,16 +72,31 @@ def resolve_mention(username: str) -> str:
     return f"@{handle}"
 
 
-def _base_description(fields: dict) -> str:
-    """会場情報を含まない、セッション内容の共通部分。"""
+def _diff_line(label: str, current_display: str, old_display) -> str:
+    """old_displayが指定されていれば「ラベル: ~~旧~~ → **新**」、
+    なければ「ラベル: 新」を返す(更新通知の取り消し線表示用)。
+    """
+    if old_display is not None:
+        return f"{label}: ~~{old_display}~~ → **{current_display}**"
+    return f"{label}: {current_display}"
+
+
+def _base_description(fields: dict, diff: dict = None) -> str:
+    """会場情報を含まない、セッション内容の共通部分。
+    diffには{"category": 旧種別, "organizer_username": 旧主催者, "levels": 旧対象,
+    "datetime": 旧日時}のうち変更があった項目だけを渡すと、その項目を
+    取り消し線+新しい値で表示する(更新通知メッセージ編集用)。概要は対象外
+    (自由記述の長文を取り消し線で差分表示すると読みにくくなるため)。
+    """
+    diff = diff or {}
     levels = "・".join(fields.get("levels") or []) or "指定なし"
     organizer = fields.get("organizer_username")
     organizer_display = f"@{organizer.lstrip('@')}" if organizer else "未設定"
     return (
-        f"種別: {fields.get('category') or '未設定'}\n"
-        f"日時: {format_datetime(fields.get('datetime'))}\n"
-        f"主催者: {organizer_display}\n"
-        f"対象: {levels}\n"
+        f"{_diff_line('種別', fields.get('category') or '未設定', diff.get('category'))}\n"
+        f"{_diff_line('日時', format_datetime(fields.get('datetime')), diff.get('datetime'))}\n"
+        f"{_diff_line('主催者', organizer_display, diff.get('organizer_username'))}\n"
+        f"{_diff_line('対象', levels, diff.get('levels'))}\n"
         f"概要:\n{fields.get('summary') or ''}"
     )
 
@@ -95,24 +110,26 @@ def build_shared_description(fields: dict, venue_url) -> str:
     return f"{_base_description(fields)}\n\n会場: {venue_display}"
 
 
-def build_announcement_content(fields: dict, venue_url) -> dict:
-    """告知メッセージのembedを組み立てる。このメッセージは公開チャンネルに
-    投稿されるため、「申込み必須」イベントではvenue_urlを一切表示せず、
-    代わりに参加申込みフォームへの案内を表示する。
+def _announcement_body(fields: dict, venue_url, diff: dict = None) -> str:
+    """告知embedの本文(会場URL/参加申込み案内を含む)。このメッセージは
+    公開チャンネルに投稿されるため、「申込み必須」イベントではvenue_urlを
+    一切表示せず、代わりに参加申込みフォームへの案内を表示する。
     """
     if fields.get("requires_rsvp"):
-        body = (
-            f"{_base_description(fields)}\n\n"
+        return (
+            f"{_base_description(fields, diff)}\n\n"
             f"⚠️ このイベントは**事前申込み制**です。参加をご希望の方は下記フォームから"
             f"お申し込みください(氏名・メールアドレスが必要です)。会場URLは折り返し"
             f"メールでご案内します。\n"
             f"**参加申込みフォーム**: {RSVP_FORM_URL}"
         )
-    else:
-        body = build_shared_description(fields, venue_url)
+    venue_display = venue_url or "主催者より別途ご案内予定"
+    return f"{_base_description(fields, diff)}\n\n会場: {venue_display}"
 
+
+def _announcement_embed(fields: dict, venue_url, diff: dict = None) -> dict:
     description = (
-        f"{body}\n\n"
+        f"{_announcement_body(fields, venue_url, diff)}\n\n"
         f"**本イベント用のNotionページ**: {notion_page_url(fields['page_id'])}\n\n"
         f"このセッションに関するお問い合わせ・質問・感想は、このスレッドにご投稿ください。"
     )
@@ -129,8 +146,25 @@ def build_announcement_content(fields: dict, venue_url) -> dict:
     }
 
 
+def build_announcement_content(fields: dict, venue_url) -> dict:
+    """告知メッセージのembedを組み立てる(新規作成時。差分表示なし)。"""
+    return _announcement_embed(fields, venue_url)
+
+
+def build_announcement_diff_content(fields: dict, venue_url, diff: dict) -> dict:
+    """「更新通知」ボタンが押された際に、告知メッセージ(スレッド最初の投稿)の
+    embedを再構成する。diffに含まれる項目(category/organizer_username/
+    levels/datetime)は取り消し線+新しい値で表示する。
+    """
+    return _announcement_embed(fields, venue_url, diff)
+
+
 def create_announcement_thread(fields: dict, venue_url) -> tuple[str, str]:
-    """告知メッセージを投稿し、そこからスレッドを作成する。戻り値は (スレッドURL, スレッドID)。"""
+    """告知メッセージを投稿し、そこからスレッドを作成する。戻り値は (スレッドURL, スレッドID)。
+    Discordの仕様上、メッセージからスレッドを作成すると、そのスレッドのIDは
+    元の告知メッセージのIDと同じ値になる。そのためedit_announcement_message()は
+    このthread_idをそのままメッセージIDとして使って告知メッセージを編集できる。
+    """
     # 1. 告知メッセージを投稿
     msg_res = requests.post(
         f"{BASE_URL}/channels/{ANNOUNCE_CHANNEL_ID}/messages",
@@ -196,9 +230,11 @@ def build_todo_content(fields: dict, venue_url) -> str:
         f"□ 3. 前日と、開催30分前に「#🐸｜井戸端かいぎ」チャンネル全体へ、このスレッドへの"
         f"リンクつきでリマインダーが届きます({reminder_note})。\n\n"
         f"□ 4. 近日中に、Notionの「井戸端かいぎの予定表」データベースへの編集権限を運営から"
-        f"付与します。ご自身のイベントページの内容(日時以外)を修正すると、30分以内にこの"
-        f"スレッドへ更新通知が届きます。**日時を変更した場合は、代わりに「#🐸｜井戸端かいぎ」"
-        f"チャンネル全体へ通知が届きます**(Googleカレンダーの予定も自動で更新されます)。\n\n"
+        f"付与します。ご自身のイベントページの内容を修正したら、そのページの「更新通知」"
+        f"ボタンを押してください。押した時点で、このスレッドの最初の投稿(変更箇所に取り消し線)"
+        f"が更新されます。**日時を変更した場合は、加えて「#🐸｜井戸端かいぎ」チャンネル全体へも"
+        f"通知が届きます**(Googleカレンダーの予定も自動で更新されます)。ボタンを押すまでは"
+        f"通知されないため、修正が全て終わってから押してください。\n\n"
         f"□ 5. このイベントを継続シリーズとして次回も開催する場合は、このイベントのNotionページを"
         f"複製し、日時だけを変更して「ステータス」を「確定」にしてください。日時が入力されて"
         f"「確定」になると、その都度この案内と同じ流れで新しいスレッドが自動的に作成されます"
@@ -225,6 +261,19 @@ def build_new_submission_notification(fields: dict, submission_page_id: str, pub
         f"予定表ページの「共有」からそのメールアドレスをゲスト招待して編集権限を付与し、"
         f"「ステータス」を「確定」に変更してください。"
     )
+
+
+def edit_announcement_message(thread_id: str, content: dict):
+    """告知メッセージ(スレッドの最初の投稿)を編集する。thread_idは
+    create_announcement_thread()が返したスレッドID(=元メッセージIDと同じ値)。
+    """
+    res = requests.patch(
+        f"{BASE_URL}/channels/{ANNOUNCE_CHANNEL_ID}/messages/{thread_id}",
+        headers=HEADERS,
+        json=content,
+    )
+    res.raise_for_status()
+    return res.json()
 
 
 def post_message(channel_or_thread_id: str, content: str):

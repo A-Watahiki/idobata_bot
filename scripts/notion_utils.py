@@ -18,6 +18,10 @@
 代わりに「井戸端かいぎ 参加申込み」データベース(氏名・メールアドレス必須)
 経由で、事前申込みした人にだけメールで会場URLが案内される
 (rsvp_notify.py・remind_events.py参照)。
+
+承認済みイベントのページ編集は、Notion側の「更新情報をスレッドに通知する」
+ボタン(裏で「更新通知」チェックボックスをtrueにする)を押した時だけ
+Discordに通知される。編集しただけで自動通知はされない(sync_updates.py参照)。
 """
 import os
 import requests
@@ -198,6 +202,13 @@ def set_discord_thread_url(page_id: str, thread_url: str):
 def mark_submission_processed(page_id: str):
     """「井戸端かいぎ 申込み」側のページに「転記済み」フラグを立てる。"""
     return update_page_properties(page_id, {"転記済み": {"checkbox": True}})
+
+
+def mark_notify_processed(page_id: str):
+    """「更新通知」ボタンが立てた「更新通知」チェックボックスをfalseに戻す
+    (処理完了の合図。ボタンは何度でも押し直して再通知できる)。
+    """
+    return update_page_properties(page_id, {"更新通知": {"checkbox": False}})
 
 
 def create_public_event_page(fields: dict) -> dict:
