@@ -192,8 +192,9 @@ def build_todo_content(fields: dict, venue_url) -> str:
     (サーバーメンバーなら誰でも閲覧・参加可能)に投稿されるため、「申込み必須」
     イベントではvenue_urlをここにも一切表示しない
     (主催者自身が入力した値なので、改めて表示する必要もない)。
-    venue_urlが未設定(かつ申込み必須でもない)場合はNoneでよく、その場合は
-    用意を促す案内を先頭に追加する。
+    venue_urlが未設定の場合はNoneでよく、その場合は用意を促す案内を先頭に
+    追加する(「申込み必須」の有無にかかわらず、会場URLが届かないと
+    参加者に何も案内できないため)。
     """
     material_folder_url = (
         "https://drive.google.com/drive/folders/1NU_WFul8KPZP4pvkr-UU02sWtu4YavOU?usp=sharing"
@@ -201,10 +202,20 @@ def build_todo_content(fields: dict, venue_url) -> str:
     mention = resolve_mention(fields.get("organizer_username"))
     admin_mention = resolve_mention("xenamanex")
 
-    if fields.get("requires_rsvp"):
+    if fields.get("requires_rsvp") and venue_url:
         venue_section = (
             f"**会場URL**: 事前申込み制のため、参加申込みフォームからお申し込みいただいた方に"
             f"個別にメールでご案内します(このスレッドには掲載されません)。\n\n"
+        )
+        reminder_note = "開催30分前のリマインダーには、事前申込み制である旨のみが記載されます(会場URLは記載されません)"
+    elif fields.get("requires_rsvp") and not venue_url:
+        venue_section = (
+            f"**会場URL**: (未設定・事前申込み制)\n\n"
+            f"□ 0. 会場のURL(Zoomなど)が届いていません。このイベントは事前申込み制のため、"
+            f"会場URLは参加申込みいただいた方へ個別にメールでご案内する仕組みです。**会場URLが"
+            f"届かない限り、参加申込みされた方にご案内できません。** ご自身でご用意のうえ、この"
+            f"スレッドへの返信でお知らせください。**ご自身での用意がどうしても難しい場合は、"
+            f"{admin_mention} までご相談ください。**\n\n"
         )
         reminder_note = "開催30分前のリマインダーには、事前申込み制である旨のみが記載されます(会場URLは記載されません)"
     elif venue_url:
