@@ -16,6 +16,13 @@ from datetime import datetime
 
 import requests
 
+
+def _raise_for_status(res):
+    if not res.ok:
+        print(f"[discord_utils] Discord API error {res.status_code}: {res.text}")
+    res.raise_for_status()
+
+
 DISCORD_BOT_TOKEN = os.environ["DISCORD_BOT_TOKEN"]
 GUILD_ID = os.environ["DISCORD_GUILD_ID"]
 ANNOUNCE_CHANNEL_ID = os.environ["DISCORD_ANNOUNCE_CHANNEL_ID"]
@@ -60,7 +67,7 @@ def resolve_mention(username: str) -> str:
         headers=HEADERS,
         params={"query": handle, "limit": 5},
     )
-    res.raise_for_status()
+    _raise_for_status(res)
     for member in res.json():
         user = member.get("user", {})
         if handle.lower() in (
@@ -171,7 +178,7 @@ def create_announcement_thread(fields: dict, venue_url) -> tuple[str, str]:
         headers=HEADERS,
         json=build_announcement_content(fields, venue_url),
     )
-    msg_res.raise_for_status()
+    _raise_for_status(msg_res)
     message_id = msg_res.json()["id"]
 
     # 2. そのメッセージからスレッドを作成
@@ -181,7 +188,7 @@ def create_announcement_thread(fields: dict, venue_url) -> tuple[str, str]:
         headers=HEADERS,
         json={"name": thread_name, "auto_archive_duration": 10080},  # 7日
     )
-    thread_res.raise_for_status()
+    _raise_for_status(thread_res)
     thread_id = thread_res.json()["id"]
 
     return f"https://discord.com/channels/{GUILD_ID}/{thread_id}", thread_id
@@ -296,7 +303,7 @@ def edit_announcement_message(thread_id: str, content: dict):
         headers=HEADERS,
         json=content,
     )
-    res.raise_for_status()
+    _raise_for_status(res)
     return res.json()
 
 
@@ -307,5 +314,5 @@ def post_message(channel_or_thread_id: str, content: str):
         headers=HEADERS,
         json={"content": content},
     )
-    res.raise_for_status()
+    _raise_for_status(res)
     return res.json()

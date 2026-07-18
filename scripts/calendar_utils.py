@@ -82,8 +82,11 @@ def create_event(
         "snapshot_levels": ",".join(fields.get("levels") or []),
         # Notionの「更新通知回数」(ボタンを押すたびに+1される数値)のうち、
         # 直近処理済みの値。この値より大きくなっていれば新たにボタンが
-        # 押されたとみなす(sync_updates.py参照)。
-        "last_notify_count": "0",
+        # 押されたとみなす(sync_updates.py参照)。作成時点のNotion側の値を
+        # そのまま初期値にする(複数回シリーズの複製では「更新通知回数」も
+        # 前回の値のまま複製されるため、単純に"0"で初期化すると、複製直後の
+        # sync_updates.pyが「ボタンが押された」と誤検知してしまうのを防ぐ)。
+        "last_notify_count": str(int(fields.get("notify_count") or 0)),
     }
 
     body = {
