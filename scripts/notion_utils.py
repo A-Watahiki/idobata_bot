@@ -4,11 +4,20 @@
   NOTION_TOKEN                     Notion internal integration の Secret
   NOTION_DATABASE_ID               「井戸端かいぎの予定表」(公開)データベースのID
   NOTION_SUBMISSIONS_DATABASE_ID   「井戸端かいぎ 申込み」(非公開)データベースのID
+  NOTION_RSVP_DATABASE_ID          「井戸端かいぎ 参加申込み」(非公開)データベースのID
+                                    (「申込み必須」イベントの事前参加申込み用。
+                                    get_rsvps_for_event等利用時のみ必要)
 
 会場URL(Zoomリンクなど)は主催者が申込み時に用意し、非公開の「井戸端かいぎ
 申込み」データベースの「会場URL」にのみ入力してもらう。公開の「井戸端かいぎの
 予定表」にはこの値を一切コピーせず、承認時にpoll_approve.pyが申込みページから
 直接読み出してGoogleカレンダーに書き込む。
+
+公表前の研究成果を扱うなど、参加者を限定したいイベントは「申込み必須」を
+チェックすると、会場URLが公開のDiscordチャンネル/スレッドに一切出なくなり、
+代わりに「井戸端かいぎ 参加申込み」データベース(氏名・メールアドレス必須)
+経由で、事前申込みした人にだけメールで会場URLが案内される
+(rsvp_notify.py・remind_events.py参照)。
 """
 import os
 import requests
@@ -94,6 +103,14 @@ def _date_start(props, name):
     return d["start"] if d else None
 
 
+def _checkbox(props, name):
+    return bool(_prop(props, name, "checkbox", False))
+
+
+def _relation_ids(props, name):
+    return [r["id"] for r in _prop(props, name, "relation", [])]
+
+
 def extract_fields(page: dict) -> dict:
     """「井戸端かいぎの予定表」(公開)のページを扱いやすい dict に変換する。
 
@@ -121,6 +138,7 @@ def extract_fields(page: dict) -> dict:
         "series_name": _rich_text(props, "シリーズ名"),
         "status": _select(props, "ステータス"),
         "submission_page_id": _rich_text(props, "申込みページID"),
+        "requires_rsvp": _checkbox(props, "申込み必須"),
     }
 
 
@@ -144,6 +162,7 @@ def extract_submission_fields(page: dict) -> dict:
         "summary": _rich_text(props, "概要"),
         "levels": _multi_select(props, "対象"),
         "series_name": _rich_text(props, "シリーズ名"),
+        "requires_rsvp": _checkbox(props, "申込み必須"),
     }
 
 
@@ -193,6 +212,7 @@ def create_public_event_page(fields: dict) -> dict:
         "タイトル": {"title": [{"text": {"content": fields.get("title") or ""}}]},
         "ステータス": {"select": {"name": "募集中"}},
         "申込みページID": {"rich_text": [{"text": {"content": fields["page_id"]}}]},
+        "申込み必須": {"checkbox": bool(fields.get("requires_rsvp"))},
     }
     if fields.get("datetime"):
         properties["日時"] = {"date": {"start": fields["datetime"]}}
@@ -208,6 +228,47 @@ def create_public_event_page(fields: dict) -> dict:
         properties["シリーズ名"] = {"rich_text": [{"text": {"content": fields["series_name"]}}]}
 
     return create_page(os.environ["NOTION_DATABASE_ID"], properties)
+
+
+def extract_rsvp_fields(page: dict) -> dict:
+    """「井戸端かいぎ 参加申込み」(非公開)のページを扱いやすい dict に変換する。
+    「参加イベント」は公開の予定表ページへのリレーション(1件のみ選択を想定)。
+    """
+    props = page["properties"]
+    event_ids = _relation_ids(props, "参加イベント")
+
+    return {
+        "page_id": page["id"],
+        "name": _title(props, "氏名"),
+        "email": _rich_text(props, "メールアドレス"),
+        "event_page_id": event_ids[0] if event_ids else None,
+    }
+
+
+def get_rsvps_for_event(event_page_id: str, only_unreminded: bool = False) -> list:
+    """指定した予定表ページに紐づく参加申込みを取得する
+    (remind_events.pyが開催30分前のリマインダーメール送信に使う)。
+    """
+    filter_obj = {"property": "参加イベント", "relation": {"contains": event_page_id}}
+    if only_unreminded:
+        filter_obj = {
+            "and": [
+                filter_obj,
+                {"property": "リマインダー送信済み", "checkbox": {"equals": False}},
+            ]
+        }
+    pages = query_database(filter_obj, database_id=os.environ["NOTION_RSVP_DATABASE_ID"])
+    return [extract_rsvp_fields(p) for p in pages]
+
+
+def mark_rsvp_notified(page_id: str):
+    """会場URLの案内メールを送信済みであることを記録する。"""
+    return update_page_properties(page_id, {"案内送信済み": {"checkbox": True}})
+
+
+def mark_rsvp_reminded(page_id: str):
+    """開催30分前のリマインダーメールを送信済みであることを記録する。"""
+    return update_page_properties(page_id, {"リマインダー送信済み": {"checkbox": True}})
 
 
 def query_database(filter_obj: dict, database_id: str = None) -> list:
