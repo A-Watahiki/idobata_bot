@@ -124,9 +124,10 @@ def extract_fields(page: dict) -> dict:
     """「井戸端かいぎの予定表」(公開)のページを扱いやすい dict に変換する。
 
     複数回シリーズの2回目以降は、Notion上で前回のページを「複製」して
-    日時だけ書き換える運用を想定している(タイトル・種別・概要・対象・
-    シリーズ名は複製時に自動的に引き継がれるため、コード側での補完は不要)。
-    「シリーズ名」が前回と一致する場合のみ、会場URL(Zoomリンクなど)を再利用する。
+    日時だけ書き換える運用を想定している(タイトル・種別・概要・対象は
+    複製時に自動的に引き継がれるため、コード側での補完は不要)。会場URLは
+    「申込みページID」経由で常に最初の申込みページから取得するため、
+    複製後も自動的に同じ会場URLが再利用される。
 
     このデータベースにはメールアドレスなど個人情報は一切持たせない設計。
     会場URL(Zoomリンクなど)もここには持たせず、Googleカレンダーの
@@ -144,7 +145,6 @@ def extract_fields(page: dict) -> dict:
         "summary": _rich_text(props, "概要"),
         "levels": _multi_select(props, "対象"),
         "material_url": _url(props, "資料リンク"),
-        "series_name": _rich_text(props, "シリーズ名"),
         "status": _select(props, "ステータス"),
         "submission_page_id": _rich_text(props, "申込みページID"),
         "requires_rsvp": _checkbox(props, "申込み必須"),
@@ -171,7 +171,6 @@ def extract_submission_fields(page: dict) -> dict:
         "venue_url": _url(props, "会場URL"),
         "summary": _rich_text(props, "概要"),
         "levels": _multi_select(props, "対象"),
-        "series_name": _rich_text(props, "シリーズ名"),
         "requires_rsvp": _checkbox(props, "申込み必須"),
     }
 
@@ -234,8 +233,6 @@ def create_public_event_page(fields: dict) -> dict:
         properties["概要"] = {"rich_text": [{"text": {"content": fields["summary"]}}]}
     if fields.get("levels"):
         properties["対象"] = {"multi_select": [{"name": v} for v in fields["levels"]]}
-    if fields.get("series_name"):
-        properties["シリーズ名"] = {"rich_text": [{"text": {"content": fields["series_name"]}}]}
 
     return create_page(os.environ["NOTION_DATABASE_ID"], properties)
 

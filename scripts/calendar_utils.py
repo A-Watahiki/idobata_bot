@@ -10,16 +10,15 @@
 会場URL(Zoomリンクなど。主催者が申込み時に用意したもの)は対外公開のNotion
 DBには一切保存せず、このカレンダーの予定にのみ記載する。予定の
 extendedProperties.privateにNotionのpage_id・Discordスレッド
-ID・(複数回開催の場合の)シリーズ名・会場URLを保存しておき、リマインダー
-送信時やシリーズの2回目以降の会場URL再利用時にはカレンダー側からこれらを
+IDなどを保存しておき、リマインダー送信時にはカレンダー側からこれらを
 読み出す(Notion側に会場URLを問い合わせる必要がないようにするため)。
 
-「シリーズ名」が入力されている場合、Notion側は開催の都度、前回のページを
-複製して日時だけ書き換える運用のため、カレンダー側もRRULEによる繰り返し
-予定ではなく、毎回1件ずつ通常の予定として作成する。同じシリーズかどうかは
-「シリーズ名」の文字列一致で判定し、既存の会場URLを使い回す
-(複製により再入力なしでシリーズ名が引き継がれる前提。主催者は初回申込み時に
-入力した会場URLを、シリーズを通じて使い続けることを想定している)。
+複数回シリーズ(輪読会など)は、開催の都度Notion上で前回のページを複製して
+日時だけ書き換える運用のため、カレンダー側もRRULEによる繰り返し予定では
+なく、毎回1件ずつ通常の予定として作成する。会場URLの再利用は、複製後も
+「申込みページID」が引き継がれることを利用し、poll_approve.pyが常に最初の
+申込みページから会場URLを取得することで実現している(カレンダー側での
+シリーズ判定は行わない)。
 
 extendedProperties.privateには、種別・主催者ユーザ名・対象のスナップショット
 (snapshot_*)と、直近処理済みの「更新通知回数」(last_notify_count)も保存する。
@@ -86,8 +85,6 @@ def create_event(
         # 押されたとみなす(sync_updates.py参照)。
         "last_notify_count": "0",
     }
-    if fields.get("series_name"):
-        private_props["series_name"] = fields["series_name"]
 
     body = {
         "summary": fields.get("title") or "井戸端かいぎ",
@@ -193,28 +190,6 @@ def list_future_events_with_notion_link(days_ahead: int = 200) -> list:
             break
 
     return [e for e in events if e.get("extendedProperties", {}).get("private", {}).get("notion_page_id")]
-
-
-def find_series_venue_url(series_name: str):
-    """同じ「シリーズ名」を持つ過去のカレンダー予定から、既存の会場URLを探す。
-    見つからなければNoneを返す(=このシリーズの初回として申込みページから
-    会場URLを取得する必要がある)。
-    """
-    service = _get_service()
-    calendar_id = os.environ["GOOGLE_CALENDAR_ID"]
-
-    result = service.events().list(
-        calendarId=calendar_id,
-        privateExtendedProperty=f"series_name={series_name}",
-        maxResults=1,
-        orderBy="updated",
-        singleEvents=True,
-    ).execute()
-    items = result.get("items", [])
-    if not items:
-        return None
-    props = items[0].get("extendedProperties", {}).get("private", {})
-    return props.get("venue_url") or None
 
 
 def find_event_by_notion_page_id(notion_page_id: str):

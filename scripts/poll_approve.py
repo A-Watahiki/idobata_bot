@@ -3,12 +3,10 @@
 「ステータス」が「確定」になっているのに、まだ「Discordスレッド」が
 作成されていない(=空の)ページを検知し、以下を行う。
 
-  1. 会場URL(Zoomリンクなど)を特定する。「シリーズ名」が入力されていて
-     既存のカレンダー予定に同じシリーズ名のものがあれば、その会場URLを
-     再利用する。なければ、申込み時に主催者自身が入力した「会場URL」を
-     非公開の「井戸端かいぎ 申込み」ページから直接読み出す。
-     会場URLが主催者からまだ届いていない場合はNoneのまま進め、
-     TODO案内で主催者に用意を促す(自分で用意できない場合は運営に依頼)。
+  1. 会場URL(Zoomリンクなど)を特定する。申込み時に主催者自身が入力した
+     「会場URL」を、非公開の「井戸端かいぎ 申込み」ページから「申込みページID」
+     経由で直接読み出す。会場URLが主催者からまだ届いていない場合はNoneのまま
+     進め、TODO案内で主催者に用意を促す(自分で用意できない場合は運営に依頼)。
   2. Discordにお知らせスレッドを作成(種別・日時・主催者・会場URLなどを記載)
   3. Googleカレンダーに予定を作成(スレッドと同じ内容+会場URLを記載。
      NotionにはZoomリンクなどの会場URLを一切書かない。Googleカレンダーは
@@ -16,10 +14,10 @@
   4. スレッドにTODO案内を投稿(主催者へのメンションつき)
   5. スレッドURLをNotionのページに書き戻す
 
-「シリーズ名」が入力されている複数回開催は、開催の都度Notion上で前回の
-ページを複製して日時だけ書き換える運用を前提としている(タイトル・種別・
-概要・対象・シリーズ名は複製時に自動的に引き継がれるため、このスクリプトは
-シリーズの正データを別途取得する処理を持たない)。
+複数回開催は、開催の都度Notion上で前回のページを複製して日時だけ書き換える
+運用を前提としている(タイトル・種別・概要・対象・「申込みページID」は複製時に
+自動的に引き継がれるため、このスクリプトは複製後も常に同じ申込みページから
+会場URLを取得することになり、シリーズを通じて同じ会場URLが自動的に再利用される)。
 """
 from notion_utils import (
     query_database,
@@ -51,12 +49,7 @@ def main():
             continue
 
         venue_url = None
-        if fields.get("series_name"):
-            venue_url = calendar_utils.find_series_venue_url(fields["series_name"])
-            if venue_url:
-                print(f"[poll_approve] reusing existing venue URL for series")
-
-        if not venue_url and fields.get("submission_page_id"):
+        if fields.get("submission_page_id"):
             venue_url = get_submission_venue_url(fields["submission_page_id"])
             if venue_url:
                 print(f"[poll_approve] venue URL fetched from submission page")
