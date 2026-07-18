@@ -11,7 +11,10 @@
 
 転記のたびに、Discordの運営用チャンネル(DISCORD_ADMIN_CHANNEL_ID)へ、
 新規申込みがあった旨と、承認手順(申込みページでメールアドレスを確認し、
-予定表ページへゲスト招待のうえ「ステータス」を「確定」に変更する)を通知する。
+予定表データベース全体へゲスト招待のうえ「ステータス」を「確定」に変更する)を
+通知する。予定表側のリンクは、承認時のゲスト招待が行単位ではなくデータベース
+ページ全体に対して行われることを踏まえ、個別の行ではなくデータベース全体の
+URLを案内する。
 """
 import os
 
@@ -38,13 +41,11 @@ def main():
         fields = extract_submission_fields(page)
         print(f"[sync_submissions] processing submission: {fields.get('title')}")
 
-        public_page = create_public_event_page(fields)
+        create_public_event_page(fields)
         mark_submission_processed(fields["page_id"])
         print(f"[sync_submissions] created public event page for: {fields.get('title')}")
 
-        notification = discord_utils.build_new_submission_notification(
-            fields, fields["page_id"], public_page["id"]
-        )
+        notification = discord_utils.build_new_submission_notification(fields, fields["page_id"])
         discord_utils.post_message(ADMIN_CHANNEL_ID, notification)
         print(f"[sync_submissions] notified admin channel for: {fields.get('title')}")
 
