@@ -66,6 +66,8 @@ def create_page(database_id: str, properties: dict) -> dict:
         headers=HEADERS,
         json={"parent": {"database_id": database_id}, "properties": properties},
     )
+    if not res.ok:
+        print(f"[notion_utils] Notion API error {res.status_code}: {res.text}")
     res.raise_for_status()
     return res.json()
 
@@ -192,6 +194,8 @@ def update_page_properties(page_id: str, properties: dict) -> dict:
         headers=HEADERS,
         json={"properties": properties},
     )
+    if not res.ok:
+        print(f"[notion_utils] Notion API error {res.status_code}: {res.text}")
     res.raise_for_status()
     return res.json()
 
