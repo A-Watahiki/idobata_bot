@@ -1,0 +1,9 @@
+{
+  "name": "idobata-notion-webhook-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Notionのインテグレーションwebhookを受けてGitHub Actions(poll.yml)を起動するVercelサーバレス関数",
+  "engines": {
+    "node": ">=18"
+  }
+}
