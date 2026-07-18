@@ -6,6 +6,8 @@
   DISCORD_ANNOUNCE_CHANNEL_ID  「#🐸｜井戸端かいぎ」チャンネルのID
   DISCORD_ADMIN_CHANNEL_ID  運営用チャンネルのID(新規申込み通知の投稿先。
                             build_new_submission_notification()利用時のみ必要)
+  NOTION_DATABASE_ID        「井戸端かいぎの予定表」(公開)データベースのID
+                            (public_database_url()利用時のみ必要)
 
 Bot に必要な権限:
   View Channels / Send Messages / Create Public Threads /
@@ -44,6 +46,14 @@ RSVP_FORM_URL = "https://oval-open-d31.notion.site/3a1530487f0a8016a173c7a087488
 def notion_page_url(page_id: str) -> str:
     """NotionのページIDから閲覧用URLを組み立てる。"""
     return f"https://www.notion.so/{page_id.replace('-', '')}"
+
+
+def public_database_url() -> str:
+    """公開の「井戸端かいぎの予定表」データベース全体のURL。
+    運営が新規申込みを承認する際、行単位ではなくこのデータベースページ全体を
+    主催者と共有できるように、個別行ではなくこちらのリンクを案内する。
+    """
+    return notion_page_url(os.environ["NOTION_DATABASE_ID"])
 
 
 def format_datetime(datetime_str: str) -> str:
@@ -275,10 +285,12 @@ def build_participant_notice_content(fields: dict) -> str:
     )
 
 
-def build_new_submission_notification(fields: dict, submission_page_id: str, public_page_id: str) -> str:
+def build_new_submission_notification(fields: dict, submission_page_id: str) -> str:
     """新しい申込みを検知した際に運営用チャンネルへ投稿する通知。
     メールアドレスそのものは記載せず、非公開の「申込み」ページへのリンクのみを示す
     (運営側でそのページを開いてメールアドレスを確認する運用)。
+    「公開予定表」側は個別の行ではなく、データベース全体のURLを案内する
+    (承認時のゲスト招待は行単位ではなくデータベースページ全体に対して行うため)。
     """
     return (
         f"📥 新しい井戸端かいぎの申込みがありました。\n\n"
@@ -287,12 +299,12 @@ def build_new_submission_notification(fields: dict, submission_page_id: str, pub
         f"**日時**: {format_datetime(fields.get('datetime'))}\n"
         f"**種別**: {fields.get('category') or '未設定'}\n\n"
         f"申込み内容(メールアドレス含む・非公開): {notion_page_url(submission_page_id)}\n"
-        f"公開予定表に転記済み(ステータス「承認待ち」): {notion_page_url(public_page_id)}\n\n"
+        f"公開予定表(ステータス「承認待ち」で転記済み): {public_database_url()}\n\n"
         f"**承認手順**\n"
         f"1. 内容を確認\n"
         f"2. 「申込み内容」ページでメールアドレスを確認\n"
-        f"3. 予定表ページの「共有」からそのメールアドレスをゲスト招待\n"
-        f"4. 「ステータス」を「確定」に変更"
+        f"3. 予定表データベース全体の「共有」からそのメールアドレスをゲスト招待\n"
+        f"4. 予定表内の該当行を探し、「ステータス」を「確定」に変更"
     )
 
 
