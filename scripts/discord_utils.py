@@ -4,6 +4,8 @@
   DISCORD_BOT_TOKEN         Botのトークン
   DISCORD_GUILD_ID          サーバー(ギルド)のID
   DISCORD_ANNOUNCE_CHANNEL_ID  「#🐸｜井戸端かいぎ」チャンネルのID
+  DISCORD_ADMIN_CHANNEL_ID  運営用チャンネルのID(新規申込み通知の投稿先。
+                            build_new_submission_notification()利用時のみ必要)
 
 Bot に必要な権限:
   View Channels / Send Messages / Create Public Threads /
@@ -150,6 +152,25 @@ def build_todo_content(fields: dict, zoom_url: str) -> str:
         f"「確定」になると、その都度この案内と同じ流れで新しいスレッドが自動的に作成されます。\n\n"
         f"□ 6. やむを得ず開催をキャンセルする場合は、このスレッドで {admin_mention} をメンションしてお知らせください。\n\n"
         f"ご不明な点があれば、このスレッドまでお気軽にどうぞ。"
+    )
+
+
+def build_new_submission_notification(fields: dict, submission_page_id: str, public_page_id: str) -> str:
+    """新しい申込みを検知した際に運営用チャンネルへ投稿する通知。
+    メールアドレスそのものは記載せず、非公開の「申込み」ページへのリンクのみを示す
+    (運営側でそのページを開いてメールアドレスを確認する運用)。
+    """
+    return (
+        f"📥 新しい井戸端かいぎの申込みがありました。\n\n"
+        f"**タイトル**: {fields.get('title') or '未設定'}\n"
+        f"**主催者**: {fields.get('organizer_username') or '未設定'}\n"
+        f"**日時**: {format_datetime(fields.get('datetime'))}\n"
+        f"**種別**: {fields.get('category') or '未設定'}\n\n"
+        f"申込み内容(メールアドレス含む・非公開): {notion_page_url(submission_page_id)}\n"
+        f"公開予定表に転記済み(ステータス「募集中」): {notion_page_url(public_page_id)}\n\n"
+        f"内容を確認し、問題なければ上記「申込み内容」ページでメールアドレスを確認のうえ、"
+        f"予定表ページの「共有」からそのメールアドレスをゲスト招待して編集権限を付与し、"
+        f"「ステータス」を「確定」に変更してください。"
     )
 
 
