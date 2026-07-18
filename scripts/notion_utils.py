@@ -77,49 +77,28 @@ def _date_start(props, name):
     return d["start"] if d else None
 
 
-def _relation_ids(props, name):
-    return [r["id"] for r in _prop(props, name, "relation", [])]
-
-
 def extract_fields(page: dict) -> dict:
     """「井戸端かいぎの予定表」のページを扱いやすい dict に変換する。
 
-    「複数回」の場合、タイトル・種別・概要・対象・発表者氏名は空のことがある
-    (シリーズ用データベースへのリレーション「シリーズ」を経由してロールアップ
-    表示される設計のため)。実際の値が必要な場合は series_page_id から
-    get_series_fields() で取得すること。
+    複数回シリーズの2回目以降は、Notion上で前回のページを「複製」して
+    日時だけ書き換える運用を想定している(タイトル・種別・概要・対象・
+    シリーズ名は複製時に自動的に引き継がれるため、コード側での補完は不要)。
+    「シリーズ名」が前回と一致する場合のみ、Zoomリンクを再利用する。
     """
     props = page["properties"]
-    series_ids = _relation_ids(props, "シリーズ")
 
     return {
         "page_id": page["id"],
+        "last_edited_time": page.get("last_edited_time"),
         "title": _title(props, "タイトル"),
         "datetime": _date_start(props, "日時"),
         "category": _select(props, "種別"),
-        "presenter_name": _rich_text(props, "発表者氏名"),
         "organizer_username": _rich_text(props, "主催者ユーザ名"),
         "summary": _rich_text(props, "概要"),
         "levels": _multi_select(props, "対象"),
         "material_url": _url(props, "資料リンク"),
-        "frequency": _select(props, "開催頻度"),
-        "series_page_id": series_ids[0] if series_ids else None,
+        "series_name": _rich_text(props, "シリーズ名"),
         "status": _select(props, "ステータス"),
-    }
-
-
-def get_series_fields(series_page_id: str) -> dict:
-    """「井戸端かいぎ シリーズ」データベースのページから、シリーズの正データを取得する。"""
-    page = get_page(series_page_id)
-    props = page["properties"]
-    return {
-        "series_page_id": page["id"],
-        "series_name": _title(props, "シリーズ名"),
-        "title": _rich_text(props, "タイトル"),
-        "category": _select(props, "種別"),
-        "summary": _rich_text(props, "概要"),
-        "levels": _multi_select(props, "対象"),
-        "presenter_name": _rich_text(props, "発表者氏名"),
     }
 
 
