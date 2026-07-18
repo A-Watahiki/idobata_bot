@@ -124,7 +124,7 @@ def create_announcement_thread(fields: dict, zoom_url: str) -> tuple[str, str]:
     return f"https://discord.com/channels/{GUILD_ID}/{thread_id}", thread_id
 
 
-def build_todo_content(fields: dict, zoom_url: str, calendar_link: str) -> str:
+def build_todo_content(fields: dict, zoom_url: str) -> str:
     """承認直後にスレッドへ投稿するTODO案内。"""
     material_folder_url = (
         "https://drive.google.com/drive/folders/1NU_WFul8KPZP4pvkr-UU02sWtu4YavOU?usp=sharing"
@@ -139,17 +139,16 @@ def build_todo_content(fields: dict, zoom_url: str, calendar_link: str) -> str:
         f"　　資料共有用フォルダ: {material_folder_url}\n"
         f"　　(アップロードした「資料そのもののURL」を、このスレッドへの返信でご共有ください)\n\n"
         f"□ 2. 2日前までに資料URLの共有が確認できない場合、このスレッドにリマインダーが自動投稿されます。\n\n"
-        f"□ 3. 開催日時はGoogleカレンダーでもご確認いただけます: {calendar_link}\n\n"
-        f"□ 4. 前日と、開催30分前に「#🐸｜井戸端かいぎ」チャンネル全体へ、このスレッドへの"
+        f"□ 3. 前日と、開催30分前に「#🐸｜井戸端かいぎ」チャンネル全体へ、このスレッドへの"
         f"リンクつきでリマインダーが届きます。\n\n"
-        f"□ 5. 近日中に、Notionの「井戸端かいぎの予定表」データベースへの編集権限を運営から"
+        f"□ 4. 近日中に、Notionの「井戸端かいぎの予定表」データベースへの編集権限を運営から"
         f"付与します。ご自身のイベントページの内容(日時以外)を修正すると、30分以内にこの"
         f"スレッドへ更新通知が届きます。**日時を変更した場合は、代わりに「#🐸｜井戸端かいぎ」"
         f"チャンネル全体へ通知が届きます**(Zoom・Googleカレンダーの予定も自動で更新されます)。\n\n"
-        f"□ 6. このイベントを継続シリーズとして次回も開催する場合は、このイベントのNotionページを"
+        f"□ 5. このイベントを継続シリーズとして次回も開催する場合は、このイベントのNotionページを"
         f"複製し、日時だけを変更して「ステータス」を「確定」にしてください。日時が入力されて"
         f"「確定」になると、その都度この案内と同じ流れで新しいスレッドが自動的に作成されます。\n\n"
-        f"□ 7. やむを得ず開催をキャンセルする場合は、このスレッドで {admin_mention} をメンションしてお知らせください。\n\n"
+        f"□ 6. やむを得ず開催をキャンセルする場合は、このスレッドで {admin_mention} をメンションしてお知らせください。\n\n"
         f"ご不明な点があれば、このスレッドまでお気軽にどうぞ。"
     )
 
