@@ -9,14 +9,15 @@
 
 Zoomリンクは対外公開のNotion DBには一切保存せず、このカレンダーの予定にのみ
 記載する。予定のextendedProperties.privateにNotionのpage_id・Discordスレッド
-ID・(複数回開催の場合の)シリーズ名を保存しておき、リマインダー送信時や
+ID・(複数回開催の場合の)シリーズページIDを保存しておき、リマインダー送信時や
 シリーズの2回目以降のZoomリンク再利用時にはカレンダー側からこれらを
 読み出す(Notion側にZoomリンクを問い合わせる必要がないようにするため)。
 
 「開催頻度」が「複数回」の場合、Notion側は開催の都度新しい行(ページ)を
 作る運用のため、カレンダー側もRRULEによる繰り返し予定ではなく、
 毎回1件ずつ通常の予定として作成する。同じシリーズかどうかは
-「シリーズ名」で判定し、既存のZoomリンクを使い回す。
+「井戸端かいぎ シリーズ」データベースのページID(シリーズ名の文字列ではなく)で
+判定し、既存のZoomリンクを使い回す。
 """
 import os
 from datetime import datetime, timedelta
@@ -62,8 +63,8 @@ def create_event(
         "discord_thread_url": thread_url,
         "zoom_join_url": zoom_url,
     }
-    if fields.get("series_name"):
-        private_props["series_name"] = fields["series_name"]
+    if fields.get("series_page_id"):
+        private_props["series_id"] = fields["series_page_id"]
 
     body = {
         "summary": fields.get("title") or "井戸端かいぎ",
@@ -115,8 +116,9 @@ def list_future_events_with_notion_link(days_ahead: int = 200) -> list:
     return [e for e in events if e.get("extendedProperties", {}).get("private", {}).get("notion_page_id")]
 
 
-def find_series_zoom_url(series_name: str):
-    """同じ「シリーズ名」を持つ過去のカレンダー予定から、既存のZoomリンクを探す。
+def find_series_zoom_url(series_page_id: str):
+    """同じシリーズ(Notion「井戸端かいぎ シリーズ」データベースのページID)を持つ
+    過去のカレンダー予定から、既存のZoomリンクを探す。
     見つからなければNoneを返す(=このシリーズの初回として新規作成が必要)。
     """
     service = _get_service()
@@ -124,7 +126,7 @@ def find_series_zoom_url(series_name: str):
 
     result = service.events().list(
         calendarId=calendar_id,
-        privateExtendedProperty=f"series_name={series_name}",
+        privateExtendedProperty=f"series_id={series_page_id}",
         maxResults=1,
         orderBy="updated",
         singleEvents=True,

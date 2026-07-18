@@ -43,74 +43,84 @@ def _plain_text(rich_text_list):
     return "".join(t.get("plain_text", "") for t in rich_text_list or [])
 
 
-def extract_fields(page: dict) -> dict:
-    """必要なプロパティだけを扱いやすい dict に変換する。
+def _prop(props, name, prop_type, default):
+    prop = props.get(name)
+    if prop is None:
+        print(f"[notion_utils] WARNING: property not found on page, skipping: {name}")
+        return default
+    return prop.get(prop_type, default)
 
-    NOTE: プロパティ名は実際のデータベースに合わせて調整してください。
+
+def _title(props, name):
+    return _plain_text(_prop(props, name, "title", []))
+
+
+def _rich_text(props, name):
+    return _plain_text(_prop(props, name, "rich_text", []))
+
+
+def _select(props, name):
+    sel = _prop(props, name, "select", None)
+    return sel["name"] if sel else None
+
+
+def _multi_select(props, name):
+    return [o["name"] for o in _prop(props, name, "multi_select", [])]
+
+
+def _url(props, name):
+    return _prop(props, name, "url", None)
+
+
+def _date_start(props, name):
+    d = _prop(props, name, "date", None)
+    return d["start"] if d else None
+
+
+def _relation_ids(props, name):
+    return [r["id"] for r in _prop(props, name, "relation", [])]
+
+
+def extract_fields(page: dict) -> dict:
+    """「井戸端かいぎの予定表」のページを扱いやすい dict に変換する。
+
+    「複数回」の場合、タイトル・種別・概要・対象・発表者氏名は空のことがある
+    (シリーズ用データベースへのリレーション「シリーズ」を経由してロールアップ
+    表示される設計のため)。実際の値が必要な場合は series_page_id から
+    get_series_fields() で取得すること。
     """
     props = page["properties"]
-
-    def _prop(name, prop_type, default):
-        prop = props.get(name)
-        if prop is None:
-            print(f"[notion_utils] WARNING: property not found on page, skipping: {name}")
-            return default
-        return prop.get(prop_type, default)
-
-    def title(name):
-        return _plain_text(_prop(name, "title", []))
-
-    def rich_text(name):
-        return _plain_text(_prop(name, "rich_text", []))
-
-    def select(name):
-        sel = _prop(name, "select", None)
-        return sel["name"] if sel else None
-
-    def multi_select(name):
-        return [o["name"] for o in _prop(name, "multi_select", [])]
-
-    def url(name):
-        return _prop(name, "url", None)
-
-    def date_start(name):
-        d = _prop(name, "date", None)
-        return d["start"] if d else None
+    series_ids = _relation_ids(props, "シリーズ")
 
     return {
         "page_id": page["id"],
-        "title": title("タイトル"),
-        "datetime": date_start("日時"),
-        "category": select("種別"),
-        "presenter_name": rich_text("発表者氏名"),
-        "organizer_username": rich_text("主催者ユーザ名"),
-        "summary": rich_text("概要"),
-        "levels": multi_select("対象"),
-        "material_url": url("資料リンク"),
-        "frequency": select("開催頻度"),
-        "series_name": select("シリーズ名"),
-        "status": select("ステータス"),
+        "title": _title(props, "タイトル"),
+        "datetime": _date_start(props, "日時"),
+        "category": _select(props, "種別"),
+        "presenter_name": _rich_text(props, "発表者氏名"),
+        "organizer_username": _rich_text(props, "主催者ユーザ名"),
+        "summary": _rich_text(props, "概要"),
+        "levels": _multi_select(props, "対象"),
+        "material_url": _url(props, "資料リンク"),
+        "frequency": _select(props, "開催頻度"),
+        "series_page_id": series_ids[0] if series_ids else None,
+        "status": _select(props, "ステータス"),
     }
 
 
-def find_previous_series_page(series_name: str, exclude_page_id: str):
-    """同じ「シリーズ名」で、既にDiscordスレッドが作成済みの直近の行を探す。
-    2回目以降のフォーム入力を簡略化するため、タイトル・種別・概要・対象・発表者氏名を
-    引き継ぐ元データとして使う。見つからなければNoneを返す。
-    """
-    pages = query_database(
-        {
-            "and": [
-                {"property": "シリーズ名", "select": {"equals": series_name}},
-                {"property": "Discordスレッド", "url": {"is_not_empty": True}},
-            ]
-        }
-    )
-    candidates = [extract_fields(p) for p in pages if p["id"] != exclude_page_id]
-    if not candidates:
-        return None
-    candidates.sort(key=lambda f: f.get("datetime") or "", reverse=True)
-    return candidates[0]
+def get_series_fields(series_page_id: str) -> dict:
+    """「井戸端かいぎ シリーズ」データベースのページから、シリーズの正データを取得する。"""
+    page = get_page(series_page_id)
+    props = page["properties"]
+    return {
+        "series_page_id": page["id"],
+        "series_name": _title(props, "シリーズ名"),
+        "title": _rich_text(props, "タイトル"),
+        "category": _select(props, "種別"),
+        "summary": _rich_text(props, "概要"),
+        "levels": _multi_select(props, "対象"),
+        "presenter_name": _rich_text(props, "発表者氏名"),
+    }
 
 
 def update_page_properties(page_id: str, properties: dict) -> dict:
@@ -122,26 +132,6 @@ def update_page_properties(page_id: str, properties: dict) -> dict:
     )
     res.raise_for_status()
     return res.json()
-
-
-def set_inherited_fields(page_id: str, fields: dict):
-    """シリーズの前回行から引き継いだタイトル・種別・概要・対象・発表者氏名を
-    このページに書き戻す(公開ビューにも内容が表示されるようにするため)。
-    """
-    properties = {}
-    if fields.get("title"):
-        properties["タイトル"] = {"title": [{"text": {"content": fields["title"]}}]}
-    if fields.get("category"):
-        properties["種別"] = {"select": {"name": fields["category"]}}
-    if fields.get("presenter_name"):
-        properties["発表者氏名"] = {"rich_text": [{"text": {"content": fields["presenter_name"]}}]}
-    if fields.get("summary"):
-        properties["概要"] = {"rich_text": [{"text": {"content": fields["summary"]}}]}
-    if fields.get("levels"):
-        properties["対象"] = {"multi_select": [{"name": v} for v in fields["levels"]]}
-    if not properties:
-        return None
-    return update_page_properties(page_id, properties)
 
 
 def set_discord_thread_url(page_id: str, thread_url: str):
