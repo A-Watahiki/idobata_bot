@@ -1,8 +1,9 @@
 """Notion API とやり取りするための共通関数。
 
 必要な環境変数:
-  NOTION_TOKEN         Notion internal integration の Secret
-  NOTION_DATABASE_ID   「井戸端かいぎの予定表」データベースの ID
+  NOTION_TOKEN                     Notion internal integration の Secret
+  NOTION_DATABASE_ID               「井戸端かいぎの予定表」(公開)データベースのID
+  NOTION_SUBMISSIONS_DATABASE_ID   「井戸端かいぎ 申込み」(非公開)データベースのID
 """
 import os
 import requests
@@ -35,6 +36,17 @@ def get_page_or_none(page_id: str):
     res = requests.get(f"{BASE_URL}/pages/{page_id}", headers=HEADERS)
     if res.status_code == 404:
         return None
+    res.raise_for_status()
+    return res.json()
+
+
+def create_page(database_id: str, properties: dict) -> dict:
+    """指定したデータベースに新しいページを作成する。"""
+    res = requests.post(
+        f"{BASE_URL}/pages",
+        headers=HEADERS,
+        json={"parent": {"database_id": database_id}, "properties": properties},
+    )
     res.raise_for_status()
     return res.json()
 
@@ -78,12 +90,14 @@ def _date_start(props, name):
 
 
 def extract_fields(page: dict) -> dict:
-    """「井戸端かいぎの予定表」のページを扱いやすい dict に変換する。
+    """「井戸端かいぎの予定表」(公開)のページを扱いやすい dict に変換する。
 
     複数回シリーズの2回目以降は、Notion上で前回のページを「複製」して
     日時だけ書き換える運用を想定している(タイトル・種別・概要・対象・
     シリーズ名は複製時に自動的に引き継がれるため、コード側での補完は不要)。
     「シリーズ名」が前回と一致する場合のみ、Zoomリンクを再利用する。
+
+    このデータベースにはメールアドレスなど個人情報は一切持たせない設計。
     """
     props = page["properties"]
 
@@ -99,6 +113,25 @@ def extract_fields(page: dict) -> dict:
         "material_url": _url(props, "資料リンク"),
         "series_name": _rich_text(props, "シリーズ名"),
         "status": _select(props, "ステータス"),
+    }
+
+
+def extract_submission_fields(page: dict) -> dict:
+    """「井戸端かいぎ 申込み」(非公開)のページを扱いやすい dict に変換する。
+    メールアドレスは、このデータベース上でのみ扱い、公開DBには一切コピーしない。
+    """
+    props = page["properties"]
+
+    return {
+        "page_id": page["id"],
+        "title": _title(props, "タイトル"),
+        "datetime": _date_start(props, "日時"),
+        "category": _select(props, "種別"),
+        "organizer_username": _rich_text(props, "主催者ユーザ名"),
+        "email": _rich_text(props, "メールアドレス"),
+        "summary": _rich_text(props, "概要"),
+        "levels": _multi_select(props, "対象"),
+        "series_name": _rich_text(props, "シリーズ名"),
     }
 
 
@@ -121,10 +154,42 @@ def set_discord_thread_url(page_id: str, thread_url: str):
     )
 
 
-def query_database(filter_obj: dict) -> list:
-    """データベースをフィルタ条件付きで検索する。"""
+def mark_submission_processed(page_id: str):
+    """「井戸端かいぎ 申込み」側のページに「転記済み」フラグを立てる。"""
+    return update_page_properties(page_id, {"転記済み": {"checkbox": True}})
+
+
+def create_public_event_page(fields: dict) -> dict:
+    """申込み内容(メールアドレスを除く)から、公開の「井戸端かいぎの予定表」に
+    新しい行を作成する。ステータスは「募集中」で作成し、運営の確認・承認を待つ。
+    """
+    properties = {
+        "タイトル": {"title": [{"text": {"content": fields.get("title") or ""}}]},
+        "ステータス": {"select": {"name": "募集中"}},
+    }
+    if fields.get("datetime"):
+        properties["日時"] = {"date": {"start": fields["datetime"]}}
+    if fields.get("category"):
+        properties["種別"] = {"select": {"name": fields["category"]}}
+    if fields.get("organizer_username"):
+        properties["主催者ユーザ名"] = {"rich_text": [{"text": {"content": fields["organizer_username"]}}]}
+    if fields.get("summary"):
+        properties["概要"] = {"rich_text": [{"text": {"content": fields["summary"]}}]}
+    if fields.get("levels"):
+        properties["対象"] = {"multi_select": [{"name": v} for v in fields["levels"]]}
+    if fields.get("series_name"):
+        properties["シリーズ名"] = {"rich_text": [{"text": {"content": fields["series_name"]}}]}
+
+    return create_page(os.environ["NOTION_DATABASE_ID"], properties)
+
+
+def query_database(filter_obj: dict, database_id: str = None) -> list:
+    """データベースをフィルタ条件付きで検索する。database_idを省略すると
+    「井戸端かいぎの予定表」(NOTION_DATABASE_ID)を対象にする。
+    """
+    database_id = database_id or os.environ["NOTION_DATABASE_ID"]
     res = requests.post(
-        f"{BASE_URL}/databases/{os.environ['NOTION_DATABASE_ID']}/query",
+        f"{BASE_URL}/databases/{database_id}/query",
         headers=HEADERS,
         json={"filter": filter_obj},
     )
