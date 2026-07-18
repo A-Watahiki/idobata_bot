@@ -32,19 +32,19 @@ def _get_access_token() -> str:
     return res.json()["access_token"]
 
 
-def create_meeting(fields: dict) -> str:
-    """Notionの開催頻度に応じてZoomミーティングを作成し、join_urlを返す。
+def _headers() -> dict:
+    return {"Authorization": f"Bearer {_get_access_token()}", "Content-Type": "application/json"}
 
-    「単発」の場合は通常の予定済みミーティング。
-    「複数回」の場合は「時間固定なしの繰り返しミーティング」を作成する。
+
+def create_meeting(fields: dict) -> dict:
+    """「シリーズ名」の有無に応じてZoomミーティングを作成する。戻り値は
+    {"meeting_id": ..., "join_url": ...}。
+
+    「シリーズ名」が空の場合は通常の予定済みミーティング。
+    入力されている場合は「時間固定なしの繰り返しミーティング」を作成する。
     このタイプはシリーズを通じて同じjoin_urlを使い回せるため、
     2回目以降の開催では新規作成せずこのURLを再利用する想定。
     """
-    token = _get_access_token()
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-
-    frequency = fields.get("frequency") or "単発"
-
     body = {
         "topic": (fields.get("title") or "井戸端かいぎ")[:200],
         "agenda": (fields.get("summary") or "")[:2000],
@@ -55,7 +55,7 @@ def create_meeting(fields: dict) -> str:
         },
     }
 
-    if frequency == "複数回":
+    if fields.get("series_name"):
         body["type"] = 3  # recurring meeting, no fixed time
     else:
         start_dt = datetime.fromisoformat(fields["datetime"])
@@ -65,10 +65,29 @@ def create_meeting(fields: dict) -> str:
 
     res = requests.post(
         "https://api.zoom.us/v2/users/me/meetings",
-        headers=headers,
+        headers=_headers(),
         json=body,
     )
     if not res.ok:
         print(f"[zoom_utils] Zoom API error {res.status_code}: {res.text}")
     res.raise_for_status()
-    return res.json()["join_url"]
+    data = res.json()
+    return {"meeting_id": data["id"], "join_url": data["join_url"]}
+
+
+def update_meeting_time(meeting_id: str, datetime_str: str):
+    """単発ミーティングの開始時刻を変更する(日時変更の同期用)。
+    「時間固定なし」の繰り返しミーティング(シリーズ用)には時刻の概念がないため対象外。
+    """
+    start_dt = datetime.fromisoformat(datetime_str)
+    res = requests.patch(
+        f"https://api.zoom.us/v2/meetings/{meeting_id}",
+        headers=_headers(),
+        json={
+            "start_time": start_dt.strftime("%Y-%m-%dT%H:%M:%S"),
+            "timezone": "Asia/Tokyo",
+        },
+    )
+    if not res.ok:
+        print(f"[zoom_utils] Zoom API error {res.status_code}: {res.text}")
+    res.raise_for_status()

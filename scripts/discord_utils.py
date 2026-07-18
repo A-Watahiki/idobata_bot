@@ -68,10 +68,12 @@ def resolve_mention(username: str) -> str:
 def build_shared_description(fields: dict, zoom_url: str) -> str:
     """告知embedとGoogleカレンダーの説明欄で共有するセッション内容。"""
     levels = "・".join(fields.get("levels") or []) or "指定なし"
+    organizer = fields.get("organizer_username")
+    organizer_display = f"@{organizer.lstrip('@')}" if organizer else "未設定"
     return (
         f"種別: {fields.get('category') or '未設定'}\n"
         f"日時: {format_datetime(fields.get('datetime'))}\n"
-        f"発表者: {fields.get('presenter_name') or '未設定'}\n"
+        f"主催者: {organizer_display}\n"
         f"対象: {levels}\n"
         f"概要:\n{fields.get('summary') or ''}\n\n"
         f"Zoom会場: {zoom_url}"
@@ -140,9 +142,14 @@ def build_todo_content(fields: dict, zoom_url: str, calendar_link: str) -> str:
         f"□ 3. 開催日時はGoogleカレンダーでもご確認いただけます: {calendar_link}\n\n"
         f"□ 4. 前日と、開催30分前に「#🐸｜井戸端かいぎ」チャンネル全体へ、このスレッドへの"
         f"リンクつきでリマインダーが届きます。\n\n"
-        f"□ 5. やむを得ず開催をキャンセルする場合は、このスレッドで {admin_mention} をメンションしてお知らせください。\n\n"
-        f"※ 日時の変更が必要な場合、直接の修正はできません。"
-        f"お手数ですが、いったんキャンセルのうえ、新しい日時で再度お申し込みください。\n\n"
+        f"□ 5. 近日中に、Notionの「井戸端かいぎの予定表」データベースへの編集権限を運営から"
+        f"付与します。ご自身のイベントページの内容(日時以外)を修正すると、30分以内にこの"
+        f"スレッドへ更新通知が届きます。**日時を変更した場合は、代わりに「#🐸｜井戸端かいぎ」"
+        f"チャンネル全体へ通知が届きます**(Zoom・Googleカレンダーの予定も自動で更新されます)。\n\n"
+        f"□ 6. このイベントを継続シリーズとして次回も開催する場合は、このイベントのNotionページを"
+        f"複製し、日時だけを変更して「ステータス」を「確定」にしてください。日時が入力されて"
+        f"「確定」になると、その都度この案内と同じ流れで新しいスレッドが自動的に作成されます。\n\n"
+        f"□ 7. やむを得ず開催をキャンセルする場合は、このスレッドで {admin_mention} をメンションしてお知らせください。\n\n"
         f"ご不明な点があれば、このスレッドまでお気軽にどうぞ。"
     )
 
