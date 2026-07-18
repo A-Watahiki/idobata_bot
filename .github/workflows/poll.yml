@@ -2,8 +2,8 @@ name: Poll Notion (Approve & Reminders)
 
 on:
   schedule:
-    # 10分おきに実行
-    - cron: "*/10 * * * *"
+    # 5分おきに実行
+    - cron: "*/5 * * * *"
   workflow_dispatch: {}  # 手動実行もできるようにしておく
 
 jobs:
