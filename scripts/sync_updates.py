@@ -5,9 +5,10 @@
 付与する運用のため、主催者自身が直接ページを修正できることを前提にしている。
 
   - 日時が変更された場合:
-    Zoomミーティング(単発のみ。シリーズの「時間固定なし」ミーティングは対象外)
-    とGoogleカレンダーの予定の時刻を更新し、スレッドと
+    Googleカレンダーの予定の時刻を更新し、スレッドと
     「#🐸｜井戸端かいぎ」チャンネル全体(スレッドへのリンクつき)に通知する。
+    会場URL(Zoomリンクなど)は主催者自身が管理するものであり、この
+    スクリプトからは変更しない。
   - 日時以外が変更された場合:
     Googleカレンダーの予定のタイトル・説明欄を更新し、スレッドにのみ通知する。
 
@@ -20,7 +21,6 @@ from datetime import datetime, timezone
 import calendar_utils
 import discord_utils
 import notion_utils
-import zoom_utils
 
 
 def _same_instant(a_iso: str, b_iso: str) -> bool:
@@ -66,8 +66,6 @@ def main():
 
         if datetime_changed:
             print(f"[sync_updates] datetime changed for: {fields.get('title')}")
-            if not fields.get("series_name") and props.get("zoom_meeting_id"):
-                zoom_utils.update_meeting_time(props["zoom_meeting_id"], fields["datetime"])
             calendar_utils.update_event_time(event["id"], fields["datetime"])
 
             new_display = discord_utils.format_datetime(fields["datetime"])
@@ -83,8 +81,8 @@ def main():
                 )
         else:
             print(f"[sync_updates] content changed (not datetime) for: {fields.get('title')}")
-            zoom_url = props.get("zoom_join_url")
-            description = discord_utils.build_shared_description(fields, zoom_url)
+            venue_url = props.get("venue_url")
+            description = discord_utils.build_shared_description(fields, venue_url)
             calendar_utils.update_event_content(event["id"], fields.get("title") or "井戸端かいぎ", description)
 
             if thread_url:

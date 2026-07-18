@@ -4,6 +4,11 @@
   NOTION_TOKEN                     Notion internal integration の Secret
   NOTION_DATABASE_ID               「井戸端かいぎの予定表」(公開)データベースのID
   NOTION_SUBMISSIONS_DATABASE_ID   「井戸端かいぎ 申込み」(非公開)データベースのID
+
+会場URL(Zoomリンクなど)は主催者が申込み時に用意し、非公開の「井戸端かいぎ
+申込み」データベースの「会場URL」にのみ入力してもらう。公開の「井戸端かいぎの
+予定表」にはこの値を一切コピーせず、承認時にpoll_approve.pyが申込みページから
+直接読み出してGoogleカレンダーに書き込む。
 """
 import os
 import requests
@@ -95,9 +100,11 @@ def extract_fields(page: dict) -> dict:
     複数回シリーズの2回目以降は、Notion上で前回のページを「複製」して
     日時だけ書き換える運用を想定している(タイトル・種別・概要・対象・
     シリーズ名は複製時に自動的に引き継がれるため、コード側での補完は不要)。
-    「シリーズ名」が前回と一致する場合のみ、Zoomリンクを再利用する。
+    「シリーズ名」が前回と一致する場合のみ、会場URL(Zoomリンクなど)を再利用する。
 
     このデータベースにはメールアドレスなど個人情報は一切持たせない設計。
+    会場URL(Zoomリンクなど)もここには持たせず、Googleカレンダーの
+    extendedProperties.privateにのみ保存する。
     """
     props = page["properties"]
 
@@ -113,12 +120,16 @@ def extract_fields(page: dict) -> dict:
         "material_url": _url(props, "資料リンク"),
         "series_name": _rich_text(props, "シリーズ名"),
         "status": _select(props, "ステータス"),
+        "submission_page_id": _rich_text(props, "申込みページID"),
     }
 
 
 def extract_submission_fields(page: dict) -> dict:
     """「井戸端かいぎ 申込み」(非公開)のページを扱いやすい dict に変換する。
     メールアドレスは、このデータベース上でのみ扱い、公開DBには一切コピーしない。
+    「会場URL」(Zoomリンクなど、主催者が用意した会場)も公開DBにはコピーせず、
+    承認時にpoll_approve.pyがこのページから直接読み出してGoogleカレンダーに
+    書き込む(get_submission_venue_url参照)。
     """
     props = page["properties"]
 
@@ -129,10 +140,21 @@ def extract_submission_fields(page: dict) -> dict:
         "category": _select(props, "種別"),
         "organizer_username": _rich_text(props, "主催者ユーザ名"),
         "email": _rich_text(props, "メールアドレス"),
+        "venue_url": _url(props, "会場URL"),
         "summary": _rich_text(props, "概要"),
         "levels": _multi_select(props, "対象"),
         "series_name": _rich_text(props, "シリーズ名"),
     }
+
+
+def get_submission_venue_url(submission_page_id: str):
+    """「井戸端かいぎ 申込み」ページから「会場URL」だけを読み出す。
+    poll_approve.pyが承認時に(公開DBを経由せず)直接呼び出す。
+    """
+    page = get_page_or_none(submission_page_id)
+    if page is None:
+        return None
+    return _url(page["properties"], "会場URL")
 
 
 def update_page_properties(page_id: str, properties: dict) -> dict:
@@ -160,12 +182,17 @@ def mark_submission_processed(page_id: str):
 
 
 def create_public_event_page(fields: dict) -> dict:
-    """申込み内容(メールアドレスを除く)から、公開の「井戸端かいぎの予定表」に
-    新しい行を作成する。ステータスは「募集中」で作成し、運営の確認・承認を待つ。
+    """申込み内容(メールアドレス・会場URLを除く)から、公開の「井戸端かいぎの
+    予定表」に新しい行を作成する。ステータスは「募集中」で作成し、運営の
+    確認・承認を待つ。
+
+    「申込みページID」には申込み元ページのIDだけを書き戻す(個人情報を含まない
+    単なる内部参照で、承認時にpoll_approve.pyが会場URLを取りに行くために使う)。
     """
     properties = {
         "タイトル": {"title": [{"text": {"content": fields.get("title") or ""}}]},
         "ステータス": {"select": {"name": "募集中"}},
+        "申込みページID": {"rich_text": [{"text": {"content": fields["page_id"]}}]},
     }
     if fields.get("datetime"):
         properties["日時"] = {"date": {"start": fields["datetime"]}}

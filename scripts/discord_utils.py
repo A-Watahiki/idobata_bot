@@ -67,25 +67,28 @@ def resolve_mention(username: str) -> str:
     return f"@{handle}"
 
 
-def build_shared_description(fields: dict, zoom_url: str) -> str:
-    """告知embedとGoogleカレンダーの説明欄で共有するセッション内容。"""
+def build_shared_description(fields: dict, venue_url) -> str:
+    """告知embedとGoogleカレンダーの説明欄で共有するセッション内容。
+    venue_url(Zoomリンクなど、主催者が用意した会場)が未設定の場合はNoneでよい。
+    """
     levels = "・".join(fields.get("levels") or []) or "指定なし"
     organizer = fields.get("organizer_username")
     organizer_display = f"@{organizer.lstrip('@')}" if organizer else "未設定"
+    venue_display = venue_url or "主催者より別途ご案内予定"
     return (
         f"種別: {fields.get('category') or '未設定'}\n"
         f"日時: {format_datetime(fields.get('datetime'))}\n"
         f"主催者: {organizer_display}\n"
         f"対象: {levels}\n"
         f"概要:\n{fields.get('summary') or ''}\n\n"
-        f"Zoom会場: {zoom_url}"
+        f"会場: {venue_display}"
     )
 
 
-def build_announcement_content(fields: dict, zoom_url: str) -> dict:
+def build_announcement_content(fields: dict, venue_url) -> dict:
     """告知メッセージのembedを組み立てる。"""
     description = (
-        f"{build_shared_description(fields, zoom_url)}\n\n"
+        f"{build_shared_description(fields, venue_url)}\n\n"
         f"**本イベント用のNotionページ**: {notion_page_url(fields['page_id'])}\n\n"
         f"このセッションに関するお問い合わせ・質問・感想は、このスレッドにご投稿ください。"
     )
@@ -102,13 +105,13 @@ def build_announcement_content(fields: dict, zoom_url: str) -> dict:
     }
 
 
-def create_announcement_thread(fields: dict, zoom_url: str) -> tuple[str, str]:
+def create_announcement_thread(fields: dict, venue_url) -> tuple[str, str]:
     """告知メッセージを投稿し、そこからスレッドを作成する。戻り値は (スレッドURL, スレッドID)。"""
     # 1. 告知メッセージを投稿
     msg_res = requests.post(
         f"{BASE_URL}/channels/{ANNOUNCE_CHANNEL_ID}/messages",
         headers=HEADERS,
-        json=build_announcement_content(fields, zoom_url),
+        json=build_announcement_content(fields, venue_url),
     )
     msg_res.raise_for_status()
     message_id = msg_res.json()["id"]
@@ -126,30 +129,45 @@ def create_announcement_thread(fields: dict, zoom_url: str) -> tuple[str, str]:
     return f"https://discord.com/channels/{GUILD_ID}/{thread_id}", thread_id
 
 
-def build_todo_content(fields: dict, zoom_url: str) -> str:
-    """承認直後にスレッドへ投稿するTODO案内。"""
+def build_todo_content(fields: dict, venue_url) -> str:
+    """承認直後にスレッドへ投稿するTODO案内。
+    venue_url(Zoomリンクなど、主催者が申込み時に用意した会場)が未設定の場合は
+    Noneでよく、その場合は用意を促す案内を先頭に追加する。
+    """
     material_folder_url = (
         "https://drive.google.com/drive/folders/1NU_WFul8KPZP4pvkr-UU02sWtu4YavOU?usp=sharing"
     )
     mention = resolve_mention(fields.get("organizer_username"))
     admin_mention = resolve_mention("xenamanex")
+
+    if venue_url:
+        venue_section = f"**会場URL**: {venue_url}\n\n"
+    else:
+        venue_section = (
+            f"**会場URL**: (未設定)\n\n"
+            f"□ 0. 会場のURL(Zoomなど)が届いていません。ご自身でご用意のうえ、このスレッドへの"
+            f"返信でお知らせください。**ご自身での用意がどうしても難しい場合は、"
+            f"{admin_mention} までご相談ください。**\n\n"
+        )
+
     return (
         f"{mention}\n\n"
         f"井戸端かいぎ「{fields.get('title')}」の開催が確定しました。以下、今後の流れです。\n\n"
-        f"**Zoom会場**: {zoom_url}\n\n"
+        f"{venue_section}"
         f"□ 1. 発表当日の2日前までに、発表資料を下記フォルダにアップロードしてください。\n"
         f"　　資料共有用フォルダ: {material_folder_url}\n"
         f"　　(アップロードした「資料そのもののURL」を、このスレッドへの返信でご共有ください)\n\n"
         f"□ 2. 2日前までに資料URLの共有が確認できない場合、このスレッドにリマインダーが自動投稿されます。\n\n"
         f"□ 3. 前日と、開催30分前に「#🐸｜井戸端かいぎ」チャンネル全体へ、このスレッドへの"
-        f"リンクつきでリマインダーが届きます。\n\n"
+        f"リンクつきでリマインダーが届きます(開催30分前のリマインダーには会場URLが記載されます)。\n\n"
         f"□ 4. 近日中に、Notionの「井戸端かいぎの予定表」データベースへの編集権限を運営から"
         f"付与します。ご自身のイベントページの内容(日時以外)を修正すると、30分以内にこの"
         f"スレッドへ更新通知が届きます。**日時を変更した場合は、代わりに「#🐸｜井戸端かいぎ」"
-        f"チャンネル全体へ通知が届きます**(Zoom・Googleカレンダーの予定も自動で更新されます)。\n\n"
+        f"チャンネル全体へ通知が届きます**(Googleカレンダーの予定も自動で更新されます)。\n\n"
         f"□ 5. このイベントを継続シリーズとして次回も開催する場合は、このイベントのNotionページを"
         f"複製し、日時だけを変更して「ステータス」を「確定」にしてください。日時が入力されて"
-        f"「確定」になると、その都度この案内と同じ流れで新しいスレッドが自動的に作成されます。\n\n"
+        f"「確定」になると、その都度この案内と同じ流れで新しいスレッドが自動的に作成されます"
+        f"(会場URLも前回と同じものが自動的に引き継がれます)。\n\n"
         f"□ 6. やむを得ず開催をキャンセルする場合は、このスレッドで {admin_mention} をメンションしてお知らせください。\n\n"
         f"ご不明な点があれば、このスレッドまでお気軽にどうぞ。"
     )

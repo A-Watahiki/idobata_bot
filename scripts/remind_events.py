@@ -2,11 +2,11 @@
 
 Googleカレンダーの予定(繰り返し予定は回ごとに展開される)を見て、
   - 開催24時間前              : 「#🐸｜井戸端かいぎ」チャンネル全体にリマインダーを投稿
-                                 (該当スレッドへのリンクつき。Zoomリンクなし)
-  - 開催30分前                : 同チャンネル全体にリマインダーを投稿(Zoomリンクつき)
+                                 (該当スレッドへのリンクつき。会場URLなし)
+  - 開催30分前                : 同チャンネル全体にリマインダーを投稿(会場URLつき)
 を行う。カレンダー予定の extendedProperties.private に保存してある
-notion_page_id / discord_thread_id / discord_thread_url / zoom_join_url を使う
-(Notion側にはZoomリンクを一切問い合わせない)。
+notion_page_id / discord_thread_id / discord_thread_url / venue_url を使う
+(Notion側には会場URLを一切問い合わせない)。
 
 二重送信防止のため、送信済みの回にはextendedPropertiesにフラグを立てる。
 """
@@ -51,7 +51,7 @@ def main():
         "just_before_reminder_sent",
         lambda event, props: (
             f"🔔 まもなく開催: 「{event.get('summary')}」は30分後に始まります。\n"
-            f"Zoom: {props.get('zoom_join_url')}\n"
+            f"会場: {props.get('venue_url') or '(未設定。スレッドをご確認のうえ運営までお問い合わせください)'}\n"
             f"スレッド: {props.get('discord_thread_url')}"
         ),
     )

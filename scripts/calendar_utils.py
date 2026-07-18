@@ -7,18 +7,19 @@
   GOOGLE_CALENDAR_ID              対象カレンダーのID(通常は doubutsurinrikaigi@gmail.com 自身、
                                    または "primary")
 
-Zoomリンクは対外公開のNotion DBには一切保存せず、このカレンダーの予定にのみ
-記載する。予定のextendedProperties.privateにNotionのpage_id・Discordスレッド
-ID・(複数回開催の場合の)シリーズ名・Zoomミーティング情報を保存しておき、
-リマインダー送信時やシリーズの2回目以降のZoomリンク再利用時、日時変更の
-検知時にはカレンダー側からこれらを読み出す(Notion側にZoomリンクを
-問い合わせる必要がないようにするため)。
+会場URL(Zoomリンクなど。主催者が申込み時に用意したもの)は対外公開のNotion
+DBには一切保存せず、このカレンダーの予定にのみ記載する。予定の
+extendedProperties.privateにNotionのpage_id・Discordスレッド
+ID・(複数回開催の場合の)シリーズ名・会場URLを保存しておき、リマインダー
+送信時やシリーズの2回目以降の会場URL再利用時にはカレンダー側からこれらを
+読み出す(Notion側に会場URLを問い合わせる必要がないようにするため)。
 
 「シリーズ名」が入力されている場合、Notion側は開催の都度、前回のページを
 複製して日時だけ書き換える運用のため、カレンダー側もRRULEによる繰り返し
 予定ではなく、毎回1件ずつ通常の予定として作成する。同じシリーズかどうかは
-「シリーズ名」の文字列一致で判定し、既存のZoomリンクを使い回す
-(複製により再入力なしでシリーズ名が引き継がれる前提)。
+「シリーズ名」の文字列一致で判定し、既存の会場URLを使い回す
+(複製により再入力なしでシリーズ名が引き継がれる前提。主催者は初回申込み時に
+入力した会場URLを、シリーズを通じて使い続けることを想定している)。
 """
 import os
 from datetime import datetime, timedelta
@@ -43,14 +44,16 @@ def _get_service():
 
 def create_event(
     fields: dict,
-    zoom_meeting: dict,
+    venue_url,
     thread_id: str,
     thread_url: str,
     description: str,
     duration_minutes: int = 30,
 ) -> dict:
-    """Zoomリンクを含む予定をGoogleカレンダーに作成する。戻り値はイベント本体
-    (event["htmlLink"] がその予定への直接リンクになる)。
+    """会場URL(Zoomリンクなど)を含む予定をGoogleカレンダーに作成する。
+    venue_urlは主催者から届いていない場合Noneでもよい(その場合はlocationも
+    空のまま作成し、届き次第set_extended_propertiesで補完する運用)。
+    戻り値はイベント本体(event["htmlLink"] がその予定への直接リンクになる)。
     """
     service = _get_service()
     calendar_id = os.environ["GOOGLE_CALENDAR_ID"]
@@ -62,8 +65,7 @@ def create_event(
         "notion_page_id": fields["page_id"],
         "discord_thread_id": thread_id,
         "discord_thread_url": thread_url,
-        "zoom_meeting_id": str(zoom_meeting["meeting_id"]),
-        "zoom_join_url": zoom_meeting["join_url"],
+        "venue_url": venue_url or "",
         "notion_last_edited_time": fields.get("last_edited_time") or "",
     }
     if fields.get("series_name"):
@@ -72,7 +74,7 @@ def create_event(
     body = {
         "summary": fields.get("title") or "井戸端かいぎ",
         "description": description,
-        "location": zoom_meeting["join_url"],
+        "location": venue_url or "",
         "start": {"dateTime": start_dt.isoformat(), "timeZone": "Asia/Tokyo"},
         "end": {"dateTime": end_dt.isoformat(), "timeZone": "Asia/Tokyo"},
         "extendedProperties": {"private": private_props},
@@ -175,10 +177,10 @@ def list_future_events_with_notion_link(days_ahead: int = 200) -> list:
     return [e for e in events if e.get("extendedProperties", {}).get("private", {}).get("notion_page_id")]
 
 
-def find_series_zoom_meeting(series_name: str):
-    """同じ「シリーズ名」を持つ過去のカレンダー予定から、既存のZoomミーティングを探す。
-    見つからなければNoneを返す(=このシリーズの初回として新規作成が必要)。
-    戻り値は create_meeting() と同じ形の {"meeting_id":..., "join_url":...}。
+def find_series_venue_url(series_name: str):
+    """同じ「シリーズ名」を持つ過去のカレンダー予定から、既存の会場URLを探す。
+    見つからなければNoneを返す(=このシリーズの初回として申込みページから
+    会場URLを取得する必要がある)。
     """
     service = _get_service()
     calendar_id = os.environ["GOOGLE_CALENDAR_ID"]
@@ -194,9 +196,7 @@ def find_series_zoom_meeting(series_name: str):
     if not items:
         return None
     props = items[0].get("extendedProperties", {}).get("private", {})
-    if not props.get("zoom_join_url"):
-        return None
-    return {"meeting_id": props.get("zoom_meeting_id"), "join_url": props["zoom_join_url"]}
+    return props.get("venue_url") or None
 
 
 def list_upcoming_instances(minutes_from_now_start: int, minutes_from_now_end: int) -> list:
