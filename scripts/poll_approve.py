@@ -8,9 +8,9 @@
      ミーティングを新規作成)
   2. Discordにお知らせスレッドを作成(種別・日時・主催者・Zoom会場などを記載)
   3. Googleカレンダーに予定を作成(スレッドと同じ内容+Zoomリンクを記載。
-     NotionにはZoomリンクを書かない)
-  4. スレッドにTODO案内を投稿(主催者へのメンションつき。Googleカレンダーの
-     予定へのリンクも記載)
+     NotionにはZoomリンクを書かない。Googleカレンダーはメンバー向けの
+     非公開の日程確認手段であり、Discordには送らない)
+  4. スレッドにTODO案内を投稿(主催者へのメンションつき)
   5. スレッドURLをNotionのページに書き戻す
 
 「シリーズ名」が入力されている複数回開催は、開催の都度Notion上で前回の
@@ -59,11 +59,10 @@ def main():
         print(f"[poll_approve] thread created: {thread_url}")
 
         description = discord_utils.build_shared_description(fields, zoom_url)
-        calendar_event = calendar_utils.create_event(fields, zoom_meeting, thread_id, thread_url, description)
-        calendar_link = calendar_event["htmlLink"]
+        calendar_utils.create_event(fields, zoom_meeting, thread_id, thread_url, description)
         print(f"[poll_approve] calendar event created")
 
-        todo_content = discord_utils.build_todo_content(fields, zoom_url, calendar_link)
+        todo_content = discord_utils.build_todo_content(fields, zoom_url)
         discord_utils.post_message(thread_id, todo_content)
         print(f"[poll_approve] TODO message posted to thread: {fields['title']}")
 
