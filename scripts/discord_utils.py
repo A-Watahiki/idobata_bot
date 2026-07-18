@@ -280,7 +280,7 @@ def build_new_submission_notification(fields: dict, submission_page_id: str, pub
         f"**日時**: {format_datetime(fields.get('datetime'))}\n"
         f"**種別**: {fields.get('category') or '未設定'}\n\n"
         f"申込み内容(メールアドレス含む・非公開): {notion_page_url(submission_page_id)}\n"
-        f"公開予定表に転記済み(ステータス「募集中」): {notion_page_url(public_page_id)}\n\n"
+        f"公開予定表に転記済み(ステータス「承認待ち」): {notion_page_url(public_page_id)}\n\n"
         f"内容を確認し、問題なければ上記「申込み内容」ページでメールアドレスを確認のうえ、"
         f"予定表ページの「共有」からそのメールアドレスをゲスト招待して編集権限を付与し、"
         f"「ステータス」を「確定」に変更してください。"

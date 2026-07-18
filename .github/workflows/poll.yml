@@ -23,6 +23,7 @@ jobs:
           NOTION_SUBMISSIONS_DATABASE_ID: ${{ secrets.NOTION_SUBMISSIONS_DATABASE_ID }}
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           DISCORD_GUILD_ID: ${{ secrets.DISCORD_GUILD_ID }}
+          DISCORD_ANNOUNCE_CHANNEL_ID: ${{ secrets.DISCORD_ANNOUNCE_CHANNEL_ID }}
           DISCORD_ADMIN_CHANNEL_ID: ${{ secrets.DISCORD_ADMIN_CHANNEL_ID }}
         run: python sync_submissions.py
       - name: Run poll_approve.py
