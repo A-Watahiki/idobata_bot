@@ -1,2 +1,3 @@
 __pycache__/
 refresh_token.py
+.venv/
