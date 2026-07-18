@@ -42,10 +42,12 @@ def main():
 
         thread_prop = page["properties"].get("Discordスレッド", {}).get("url")
         if thread_prop:
+            notion_url = discord_utils.notion_page_url(fields["page_id"])
             discord_utils.post_message(
                 thread_id_from_url(thread_prop),
-                f"⏰ リマインダー: 発表まであと2日です。資料のアップロードをお願いします。"
-                f"（資料共有用フォルダのURLへのアップロード後、こちらのスレッドに資料URLをご返信ください）",
+                f"⏰ リマインダー: 発表まであと2日です。資料のアップロードは任意ですが、"
+                f"お済みでなければご検討ください。アップロードした資料のURLは"
+                f"「本イベント用のNotionページ」({notion_url})の「資料リンク」欄にご記入ください。",
             )
 
 
