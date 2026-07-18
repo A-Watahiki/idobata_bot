@@ -256,6 +256,18 @@ def build_todo_content(fields: dict, venue_url) -> str:
     )
 
 
+def build_participant_notice_content(fields: dict) -> str:
+    """TODO案内に続けてスレッドへ投稿する、主催者以外の参加者向けの案内。
+    このイベントについての問い合わせや、発表内容に関する質疑もこのスレッドで
+    受け付けている旨を伝える。
+    """
+    return (
+        f"📣 「{fields.get('title')}」について、ご質問やお問い合わせ、発表内容に関する"
+        f"質疑応答も、主催者以外の方を含めどなたでもこのスレッドにご投稿いただけます。"
+        f"お気軽にどうぞ。"
+    )
+
+
 def build_new_submission_notification(fields: dict, submission_page_id: str, public_page_id: str) -> str:
     """新しい申込みを検知した際に運営用チャンネルへ投稿する通知。
     メールアドレスそのものは記載せず、非公開の「申込み」ページへのリンクのみを示す

@@ -11,7 +11,8 @@
   3. Googleカレンダーに予定を作成(スレッドと同じ内容+会場URLを記載。
      NotionにはZoomリンクなどの会場URLを一切書かない。Googleカレンダーは
      メンバー向けの非公開の日程確認手段であり、Discordには送らない)
-  4. スレッドにTODO案内を投稿(主催者へのメンションつき)
+  4. スレッドにTODO案内を投稿(主催者へのメンションつき)。続けて、主催者以外の
+     参加者向けに、問い合わせ・質疑もこのスレッドで受け付ける旨の案内を投稿
   5. スレッドURLをNotionのページに書き戻す
 
 複数回開催は、開催の都度Notion上で前回のページを複製して日時だけ書き換える
@@ -67,6 +68,10 @@ def main():
         todo_content = discord_utils.build_todo_content(fields, venue_url)
         discord_utils.post_message(thread_id, todo_content)
         print(f"[poll_approve] TODO message posted to thread: {fields['title']}")
+
+        participant_notice = discord_utils.build_participant_notice_content(fields)
+        discord_utils.post_message(thread_id, participant_notice)
+        print(f"[poll_approve] participant notice posted to thread: {fields['title']}")
 
         set_discord_thread_url(fields["page_id"], thread_url)
         print(f"[poll_approve] Notion page updated with thread URL: {fields['title']}")
