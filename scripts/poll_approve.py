@@ -24,7 +24,8 @@ from notion_utils import (
     query_database,
     extract_fields,
     set_discord_thread_url,
-    get_submission_venue_url,
+    get_submission_venue_and_organizer,
+    create_organizer_rsvp,
 )
 import calendar_utils
 import discord_utils
@@ -50,13 +51,26 @@ def main():
             continue
 
         venue_url = None
+        organizer_email = None
         if fields.get("submission_page_id"):
-            venue_url = get_submission_venue_url(fields["submission_page_id"])
+            submission_info = get_submission_venue_and_organizer(fields["submission_page_id"])
+            venue_url = submission_info["venue_url"]
+            organizer_email = submission_info["organizer_email"]
             if venue_url:
                 print(f"[poll_approve] venue URL fetched from submission page")
 
         if not venue_url:
             print(f"[poll_approve] {fields['title']}: no venue URL available yet")
+
+        # 「申込み必須」イベントは、主催者も一般の参加申込み者と同様に会場URL
+        # 案内・リマインダーメールを受け取れるよう、自身を参加申込みデータベースへ
+        # 自動登録する(申込みフォームへの記入は不要)。
+        if fields.get("requires_rsvp"):
+            if organizer_email:
+                create_organizer_rsvp(fields.get("organizer_username"), organizer_email, fields["page_id"])
+                print(f"[poll_approve] organizer auto-registered as RSVP: {fields['title']}")
+            else:
+                print(f"[poll_approve] {fields['title']}: requires_rsvp but organizer email not found, skipping auto RSVP")
 
         thread_url, thread_id = discord_utils.create_announcement_thread(fields, venue_url)
         print(f"[poll_approve] thread created: {thread_url}")

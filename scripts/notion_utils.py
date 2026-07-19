@@ -201,6 +201,23 @@ def get_submission_venue_url(submission_page_id: str):
     return _url(page["properties"], "会場URL")
 
 
+def get_submission_venue_and_organizer(submission_page_id: str) -> dict:
+    """「井戸端かいぎ 申込み」ページから「会場URL」と主催者情報をまとめて読み出す。
+    poll_approve.pyが「申込み必須」イベントの承認時に、主催者を参加申込み
+    データベースへ自動登録する(=主催者にも会場URL案内・リマインダーメールが
+    届くようにする)ために使う。
+    """
+    page = get_page_or_none(submission_page_id)
+    if page is None:
+        return {"venue_url": None, "organizer_email": None, "organizer_username": None}
+    props = page["properties"]
+    return {
+        "venue_url": _url(props, "会場URL"),
+        "organizer_email": _email(props, "メールアドレス"),
+        "organizer_username": _rich_text(props, "主催者ユーザ名"),
+    }
+
+
 def update_page_properties(page_id: str, properties: dict) -> dict:
     """ページのプロパティを更新する(Discordスレッドの書き戻しなどに使用)。"""
     res = requests.patch(
@@ -255,6 +272,22 @@ def create_public_event_page(fields: dict) -> dict:
         properties["対象"] = {"multi_select": [{"name": v} for v in fields["levels"]]}
 
     return create_page(os.environ["NOTION_DATABASE_ID"], properties)
+
+
+def create_organizer_rsvp(organizer_username: str, organizer_email: str, event_page_id: str) -> dict:
+    """「申込み必須」イベントの承認時に、主催者自身を「井戸端かいぎ 参加申込み」
+    データベースへ自動登録する(poll_approve.pyから呼び出す)。これにより、
+    主催者にも一般の参加申込み者と同様に、会場URLの案内メール・開催直前の
+    リマインダーメールが届くようになる。
+    「氏名」は本名を収集していないため、代わりにDiscordユーザー名を入れる。
+    """
+    name = f"主催者（@{organizer_username.lstrip('@')}）" if organizer_username else "主催者"
+    properties = {
+        "氏名": {"title": [{"text": {"content": name}}]},
+        "メールアドレス": {"email": organizer_email},
+        "参加イベント": {"relation": [{"id": event_page_id}]},
+    }
+    return create_page(os.environ["NOTION_RSVP_DATABASE_ID"], properties)
 
 
 def extract_rsvp_fields(page: dict) -> dict:
