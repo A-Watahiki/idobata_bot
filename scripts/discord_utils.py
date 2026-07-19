@@ -127,21 +127,30 @@ def build_shared_description(fields: dict, venue_url) -> str:
     return f"{_base_description(fields)}\n\n会場: {venue_display}"
 
 
-def _announcement_body(fields: dict, venue_url, diff: dict = None) -> str:
-    """告知embedの本文(会場URL/参加申込み案内を含む)。このメッセージは
-    公開チャンネルに投稿されるため、「申込み必須」イベントではvenue_urlを
-    一切表示せず、代わりに参加申込みフォームへの案内を表示する。
+def _rsvp_notice(fields: dict) -> str:
+    """スレッド冒頭に目立たせる「申込み：不要／必須」の表示。
+    「必須」の場合は、直後に参加申込みフォームへのリンクを添える
+    (氏名・メールアドレスが必要で、会場URLは折り返しメールで案内される旨も明記)。
     """
     if fields.get("requires_rsvp"):
         return (
-            f"{_base_description(fields, diff)}\n\n"
-            f"⚠️ このイベントは**事前申込み制**です。参加をご希望の方は下記フォームから"
-            f"お申し込みください(氏名・メールアドレスが必要です)。会場URLは折り返し"
-            f"メールでご案内します。\n"
-            f"**参加申込みフォーム**: {RSVP_FORM_URL}"
+            f"📋 **申込み：必須**\n"
+            f"**参加申込みフォーム**: {RSVP_FORM_URL}\n"
+            f"(氏名・メールアドレスが必要です。会場URLは折り返しメールでご案内します)"
         )
+    return "📋 **申込み：不要**"
+
+
+def _announcement_body(fields: dict, venue_url, diff: dict = None) -> str:
+    """告知embedの本文(申込み案内/会場URLを含む)。このメッセージは公開
+    チャンネルに投稿されるため、「申込み必須」イベントではvenue_urlを一切
+    表示せず、代わりに参加申込みフォームへの案内を表示する。
+    """
+    rsvp_notice = _rsvp_notice(fields)
+    if fields.get("requires_rsvp"):
+        return f"{rsvp_notice}\n\n{_base_description(fields, diff)}"
     venue_display = venue_url or "主催者より別途ご案内予定"
-    return f"{_base_description(fields, diff)}\n\n会場: {venue_display}"
+    return f"{rsvp_notice}\n\n{_base_description(fields, diff)}\n\n会場: {venue_display}"
 
 
 def _announcement_embed(fields: dict, venue_url, diff: dict = None) -> dict:
