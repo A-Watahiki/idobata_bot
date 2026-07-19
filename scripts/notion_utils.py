@@ -13,10 +13,11 @@
 予定表」にはこの値を一切コピーせず、承認時にpoll_approve.pyが申込みページから
 直接読み出してGoogleカレンダーに書き込む。
 
-公表前の研究成果を扱うなど、参加者を限定したいイベントは「申込み必須」を
-チェックすると、会場URLが公開のDiscordチャンネル/スレッドに一切出なくなり、
-代わりに「井戸端かいぎ 参加申込み」データベース(氏名・メールアドレス必須)
-経由で、事前申込みした人にだけメールで会場URLが案内される
+公表前の研究成果を扱うなど、参加者を限定したいイベントは「申込みの有無」
+(select: 「申込み不要」/「申込み必須」)で「申込み必須」を選択すると、
+会場URLが公開のDiscordチャンネル/スレッドに一切出なくなり、代わりに
+「井戸端かいぎ 参加申込み」データベース(氏名・メールアドレス必須)経由で、
+事前申込みした人にだけメールで会場URLが案内される
 (rsvp_notify.py・remind_events.py参照)。
 
 承認済みイベントのページ編集は、Notion側の「更新情報をスレッドに通知する」
@@ -149,7 +150,7 @@ def extract_fields(page: dict) -> dict:
         "material_url": _url(props, "資料リンク"),
         "status": _select(props, "ステータス"),
         "submission_page_id": _rich_text(props, "申込みページID"),
-        "requires_rsvp": _checkbox(props, "申込み必須"),
+        "requires_rsvp": _select(props, "申込みの有無") == "申込み必須",
         "notify_count": _number(props, "更新通知回数"),
     }
 
@@ -173,7 +174,7 @@ def extract_submission_fields(page: dict) -> dict:
         "venue_url": _url(props, "会場URL"),
         "summary": _rich_text(props, "概要"),
         "levels": _multi_select(props, "対象"),
-        "requires_rsvp": _checkbox(props, "申込み必須"),
+        "requires_rsvp": _select(props, "申込みの有無") == "申込み必須",
     }
 
 
@@ -225,7 +226,9 @@ def create_public_event_page(fields: dict) -> dict:
         "タイトル": {"title": [{"text": {"content": fields.get("title") or ""}}]},
         "ステータス": {"select": {"name": "承認待ち"}},
         "申込みページID": {"rich_text": [{"text": {"content": fields["page_id"]}}]},
-        "申込み必須": {"checkbox": bool(fields.get("requires_rsvp"))},
+        "申込みの有無": {
+            "select": {"name": "申込み必須" if fields.get("requires_rsvp") else "申込み不要"}
+        },
     }
     if fields.get("datetime"):
         properties["日時"] = {"date": {"start": fields["datetime"]}}
