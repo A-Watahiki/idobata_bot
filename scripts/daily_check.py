@@ -46,8 +46,9 @@ def main():
             discord_utils.post_message(
                 thread_id_from_url(thread_prop),
                 f"⏰ リマインダー: 発表まであと2日です。資料のアップロードは任意ですが、"
-                f"お済みでなければご検討ください。アップロードした資料のURLは"
-                f"「本イベント用のNotionページ」({notion_url})の「資料リンク」欄にご記入ください。",
+                f"お済みでなければご検討ください。アップロードした資料のURLは、下記の"
+                f"「本イベント用のNotionページ」の「資料リンク」欄にご記入ください。\n"
+                f"{notion_url}",
             )
 
 
