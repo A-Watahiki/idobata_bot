@@ -93,6 +93,19 @@ def _rich_text(props, name):
     return _plain_text(_prop(props, name, "rich_text", []))
 
 
+def _email(props, name):
+    """メールアドレス欄。Notion側でEmail型/テキスト型どちらで作られていても
+    読み取れるよう、実際のプロパティ種別を見て分岐する。
+    """
+    prop = props.get(name)
+    if prop is None:
+        print(f"[notion_utils] WARNING: property not found on page, skipping: {name}")
+        return ""
+    if prop.get("type") == "email":
+        return prop.get("email") or ""
+    return _plain_text(prop.get("rich_text", []))
+
+
 def _select(props, name):
     sel = _prop(props, name, "select", None)
     return sel["name"] if sel else None
@@ -170,7 +183,7 @@ def extract_submission_fields(page: dict) -> dict:
         "datetime": _date_start(props, "日時"),
         "category": _select(props, "種別"),
         "organizer_username": _rich_text(props, "主催者ユーザ名"),
-        "email": _rich_text(props, "メールアドレス"),
+        "email": _email(props, "メールアドレス"),
         "venue_url": _url(props, "会場URL"),
         "summary": _rich_text(props, "概要"),
         "levels": _multi_select(props, "対象"),
@@ -254,7 +267,7 @@ def extract_rsvp_fields(page: dict) -> dict:
     return {
         "page_id": page["id"],
         "name": _title(props, "氏名"),
-        "email": _rich_text(props, "メールアドレス"),
+        "email": _email(props, "メールアドレス"),
         "event_page_id": event_ids[0] if event_ids else None,
     }
 
