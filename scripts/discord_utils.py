@@ -16,7 +16,7 @@ Bot に必要な権限:
 import os
 from datetime import datetime
 
-import requests
+from http_utils import build_session
 
 
 def _raise_for_status(res):
@@ -34,6 +34,10 @@ HEADERS = {
     "Authorization": f"Bot {DISCORD_BOT_TOKEN}",
     "Content-Type": "application/json",
 }
+
+# 一時的な接続エラーやDiscord側の429/5xxに対して自動リトライするセッション
+# (http_utils.py参照)。
+SESSION = build_session()
 
 WEEKDAY_JA = ["月", "火", "水", "木", "金", "土", "日"]
 
@@ -72,7 +76,7 @@ def resolve_mention(username: str) -> str:
     if not username:
         return "ご担当者"
     handle = username.lstrip("@")
-    res = requests.get(
+    res = SESSION.get(
         f"{BASE_URL}/guilds/{GUILD_ID}/members/search",
         headers=HEADERS,
         params={"query": handle, "limit": 5},
@@ -192,7 +196,7 @@ def create_announcement_thread(fields: dict, venue_url) -> tuple[str, str]:
     このthread_idをそのままメッセージIDとして使って告知メッセージを編集できる。
     """
     # 1. 告知メッセージを投稿
-    msg_res = requests.post(
+    msg_res = SESSION.post(
         f"{BASE_URL}/channels/{ANNOUNCE_CHANNEL_ID}/messages",
         headers=HEADERS,
         json=build_announcement_content(fields, venue_url),
@@ -202,7 +206,7 @@ def create_announcement_thread(fields: dict, venue_url) -> tuple[str, str]:
 
     # 2. そのメッセージからスレッドを作成
     thread_name = (fields.get("title") or "井戸端かいぎ")[:100]
-    thread_res = requests.post(
+    thread_res = SESSION.post(
         f"{BASE_URL}/channels/{ANNOUNCE_CHANNEL_ID}/messages/{message_id}/threads",
         headers=HEADERS,
         json={"name": thread_name, "auto_archive_duration": 10080},  # 7日
@@ -323,7 +327,7 @@ def edit_announcement_message(thread_id: str, content: dict):
     """告知メッセージ(スレッドの最初の投稿)を編集する。thread_idは
     create_announcement_thread()が返したスレッドID(=元メッセージIDと同じ値)。
     """
-    res = requests.patch(
+    res = SESSION.patch(
         f"{BASE_URL}/channels/{ANNOUNCE_CHANNEL_ID}/messages/{thread_id}",
         headers=HEADERS,
         json=content,
@@ -334,7 +338,7 @@ def edit_announcement_message(thread_id: str, content: dict):
 
 def post_message(channel_or_thread_id: str, content: str):
     """チャンネルまたはスレッドにメッセージを投稿する。"""
-    res = requests.post(
+    res = SESSION.post(
         f"{BASE_URL}/channels/{channel_or_thread_id}/messages",
         headers=HEADERS,
         json={"content": content},

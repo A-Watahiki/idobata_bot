@@ -13,6 +13,9 @@ extendedProperties.privateにNotionのpage_id・Discordスレッド
 IDなどを保存しておき、リマインダー送信時にはカレンダー側からこれらを
 読み出す(Notion側に会場URLを問い合わせる必要がないようにするため)。
 
+すべての`.execute(num_retries=3)`は、google-api-python-client組み込みの
+リトライ機構(一時的な接続エラー・5xxに対する指数バックオフ)を有効にする。
+
 複数回シリーズ(輪読会など)は、開催の都度Notion上で前回のページを複製して
 日時だけ書き換える運用のため、カレンダー側もRRULEによる繰り返し予定では
 なく、毎回1件ずつ通常の予定として作成する。会場URLの再利用は、複製後も
@@ -98,21 +101,21 @@ def create_event(
         "extendedProperties": {"private": private_props},
     }
 
-    event = service.events().insert(calendarId=calendar_id, body=body).execute()
+    event = service.events().insert(calendarId=calendar_id, body=body).execute(num_retries=3)
     return event
 
 
 def get_event(event_id: str) -> dict:
     service = _get_service()
     calendar_id = os.environ["GOOGLE_CALENDAR_ID"]
-    return service.events().get(calendarId=calendar_id, eventId=event_id).execute()
+    return service.events().get(calendarId=calendar_id, eventId=event_id).execute(num_retries=3)
 
 
 def delete_event(event_id: str):
     """予定を削除する(Notion側でキャンセル・削除された場合に呼ばれる)。"""
     service = _get_service()
     calendar_id = os.environ["GOOGLE_CALENDAR_ID"]
-    service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
+    service.events().delete(calendarId=calendar_id, eventId=event_id).execute(num_retries=3)
 
 
 def set_extended_properties(event_id: str, updates: dict):
@@ -126,7 +129,7 @@ def set_extended_properties(event_id: str, updates: dict):
         calendarId=calendar_id,
         eventId=event_id,
         body={"extendedProperties": {"private": props}},
-    ).execute()
+    ).execute(num_retries=3)
 
 
 def mark_reminder_sent(event_id: str, key: str):
@@ -151,7 +154,7 @@ def update_event_time(event_id: str, datetime_str: str, duration_minutes: int = 
             "start": {"dateTime": start_dt.isoformat(), "timeZone": "Asia/Tokyo"},
             "end": {"dateTime": end_dt.isoformat(), "timeZone": "Asia/Tokyo"},
         },
-    ).execute()
+    ).execute(num_retries=3)
 
 
 def update_event_content(event_id: str, summary: str, description: str):
@@ -162,7 +165,7 @@ def update_event_content(event_id: str, summary: str, description: str):
         calendarId=calendar_id,
         eventId=event_id,
         body={"summary": summary, "description": description},
-    ).execute()
+    ).execute(num_retries=3)
 
 
 def list_future_events_with_notion_link(days_ahead: int = 200) -> list:
@@ -186,7 +189,7 @@ def list_future_events_with_notion_link(days_ahead: int = 200) -> list:
             singleEvents=True,
             orderBy="startTime",
             pageToken=page_token,
-        ).execute()
+        ).execute(num_retries=3)
         events.extend(result.get("items", []))
         page_token = result.get("nextPageToken")
         if not page_token:
@@ -208,7 +211,7 @@ def find_event_by_notion_page_id(notion_page_id: str):
         privateExtendedProperty=f"notion_page_id={notion_page_id}",
         maxResults=1,
         singleEvents=True,
-    ).execute()
+    ).execute(num_retries=3)
     items = result.get("items", [])
     return items[0] if items else None
 
@@ -230,5 +233,5 @@ def list_upcoming_instances(minutes_from_now_start: int, minutes_from_now_end: i
         timeMax=time_max,
         singleEvents=True,
         orderBy="startTime",
-    ).execute()
+    ).execute(num_retries=3)
     return result.get("items", [])

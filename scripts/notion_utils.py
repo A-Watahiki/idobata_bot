@@ -26,7 +26,8 @@
 短時間に連続で押しても取りこぼされない(sync_updates.py参照)。
 """
 import os
-import requests
+
+from http_utils import build_session
 
 NOTION_TOKEN = os.environ["NOTION_TOKEN"]
 # 2022-06-28: databases/{id}/query を database_id で直接叩ける最後の安定版。
@@ -41,10 +42,14 @@ HEADERS = {
     "Content-Type": "application/json",
 }
 
+# 一時的な接続エラー(TLSハンドシェイク中の切断など)やNotion側の429/5xxに
+# 対して自動リトライするセッション(http_utils.py参照)。
+SESSION = build_session()
+
 
 def get_page(page_id: str) -> dict:
     """ページのプロパティを取得する。"""
-    res = requests.get(f"{BASE_URL}/pages/{page_id}", headers=HEADERS)
+    res = SESSION.get(f"{BASE_URL}/pages/{page_id}", headers=HEADERS)
     res.raise_for_status()
     return res.json()
 
@@ -53,7 +58,7 @@ def get_page_or_none(page_id: str):
     """ページを取得する。完全に削除されている(APIから404が返る)場合はNoneを返す。
     Notion上で「削除」してもゴミ箱に入るだけの場合はarchived=Trueとして通常どおり返る。
     """
-    res = requests.get(f"{BASE_URL}/pages/{page_id}", headers=HEADERS)
+    res = SESSION.get(f"{BASE_URL}/pages/{page_id}", headers=HEADERS)
     if res.status_code == 404:
         return None
     res.raise_for_status()
@@ -62,7 +67,7 @@ def get_page_or_none(page_id: str):
 
 def create_page(database_id: str, properties: dict) -> dict:
     """指定したデータベースに新しいページを作成する。"""
-    res = requests.post(
+    res = SESSION.post(
         f"{BASE_URL}/pages",
         headers=HEADERS,
         json={"parent": {"database_id": database_id}, "properties": properties},
@@ -220,7 +225,7 @@ def get_submission_venue_and_organizer(submission_page_id: str) -> dict:
 
 def update_page_properties(page_id: str, properties: dict) -> dict:
     """ページのプロパティを更新する(Discordスレッドの書き戻しなどに使用)。"""
-    res = requests.patch(
+    res = SESSION.patch(
         f"{BASE_URL}/pages/{page_id}",
         headers=HEADERS,
         json={"properties": properties},
@@ -336,7 +341,7 @@ def query_database(filter_obj: dict, database_id: str = None) -> list:
     「井戸端かいぎの予定表」(NOTION_DATABASE_ID)を対象にする。
     """
     database_id = database_id or os.environ["NOTION_DATABASE_ID"]
-    res = requests.post(
+    res = SESSION.post(
         f"{BASE_URL}/databases/{database_id}/query",
         headers=HEADERS,
         json={"filter": filter_obj},
