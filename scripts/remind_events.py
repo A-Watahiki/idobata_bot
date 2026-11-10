@@ -1,9 +1,9 @@
-"""GitHub Actionsのscheduleトリガーで定期実行するスクリプト(5分おき、poll.ymlから実行)。
+"""poll.ymlから定期実行するスクリプト(外部スケジューラ経由で5分おき+GitHub cron)。
 
 Googleカレンダーの予定(繰り返し予定は回ごとに展開される)を見て、
-  - 開催24時間前              : 「#🐸｜井戸端かいぎ」チャンネル全体にリマインダーを投稿
+  - 開催前日(24時間前)のリマインダー: 「#🐸｜井戸端かいぎ」チャンネル全体に投稿
                                  (該当スレッドへのリンクつき。会場URLなし)
-  - 開催30分前                : 同チャンネル全体にリマインダーを投稿
+  - 開催直前(30分前)のリマインダー : 同チャンネル全体に投稿
                                  (「申込み必須」でなければ会場URLつき。
                                  「申込み必須」の場合は会場URLを出さず、代わりに
                                  事前申込み者一人ひとりへ会場URLを個別にメールする)
@@ -12,24 +12,51 @@ notion_page_id / discord_thread_id / discord_thread_url / venue_url / requires_r
 を使う(Notion側には会場URLを一切問い合わせない。「申込み必須」イベントの
 事前申込み者一覧だけは、参加申込みデータベースに問い合わせる)。
 
+判定は「追いつき型」: 開催までの残り時間が窓の範囲内で、まだ未送信なら送る。
+実行が遅れて狙った時刻を過ぎても、次の実行で送られる(GitHubのcronは
+数時間単位で間引かれることがあり、10分程度の狭い窓だと取りこぼすため)。
+
 二重送信防止のため、送信済みの回にはextendedPropertiesにフラグを立てる
 (チャンネル向け)。事前申込み者向けメールは申込み1件ごとに
-「リマインダー送信済み」チェックボックスで二重送信を防ぐ。
+「リマインダー送信済み」チェックボックスで二重送信を防ぐ。日時が変更された
+場合は、sync_updates.pyがチャンネル向けのフラグをリセットする。
 """
+from datetime import datetime, timezone
+
 import calendar_utils
 import discord_utils
 import email_utils
 import notion_utils
 
-DAY_BEFORE_WINDOW = (24 * 60, 24 * 60 + 10)  # 分
-JUST_BEFORE_WINDOW = (25, 35)  # 分(30分前を少し余裕を持って狙う)
+# (下限, 上限] 分。開催までの残り時間がこの範囲にあり、未送信なら送る。
+# 前日リマインダーは、残り60分を切ったら直前リマインダーに任せて送らない。
+DAY_BEFORE_WINDOW = (60, 24 * 60 + 10)
+JUST_BEFORE_WINDOW = (0, 35)
+
+
+def _minutes_until_start(event) -> float:
+    start = datetime.fromisoformat(event["start"]["dateTime"])
+    return (start - datetime.now(timezone.utc)).total_seconds() / 60
+
+
+def _start_display(event) -> str:
+    return discord_utils.format_datetime(event["start"]["dateTime"])
 
 
 def _remind(minutes_window, flag_key, build_content, on_sent=None):
-    instances = calendar_utils.list_upcoming_instances(*minutes_window)
-    print(f"[remind_events] {flag_key}: {len(instances)} instance(s) in window")
+    low, high = minutes_window
+    instances = calendar_utils.list_upcoming_instances(low, high)
 
+    targets = []
     for event in instances:
+        if "dateTime" not in event.get("start", {}):
+            continue  # 終日予定は対象外
+        # Calendar APIのtimeMinは終了時刻で絞り込むため、開始時刻で改めて判定する
+        if low < _minutes_until_start(event) <= high:
+            targets.append(event)
+    print(f"[remind_events] {flag_key}: {len(targets)} instance(s) in window")
+
+    for event in targets:
         props = event.get("extendedProperties", {}).get("private", {})
         if props.get(flag_key) == "true":
             continue
@@ -48,22 +75,31 @@ def _remind(minutes_window, flag_key, build_content, on_sent=None):
             on_sent(event, props)
 
 
+def _day_before_content(event, props):
+    return (
+        f"⏰ リマインダー: 「{event.get('summary')}」は {_start_display(event)} に開催です。\n"
+        f"スレッド: {props.get('discord_thread_url')}"
+    )
+
+
 def _just_before_content(event, props):
+    minutes = max(1, round(_minutes_until_start(event)))
+    head = f"🔔 まもなく開催: 「{event.get('summary')}」は約{minutes}分後({_start_display(event)})に始まります。\n"
     if props.get("requires_rsvp") == "true":
         return (
-            f"🔔 まもなく開催: 「{event.get('summary')}」は30分後に始まります。\n"
+            f"{head}"
             f"本イベントは事前申込み制のため、会場URLは申込みいただいた方へ個別にメールでご案内しています。\n"
             f"スレッド: {props.get('discord_thread_url')}"
         )
     return (
-        f"🔔 まもなく開催: 「{event.get('summary')}」は30分後に始まります。\n"
+        f"{head}"
         f"会場: {props.get('venue_url') or '(未設定。スレッドをご確認のうえ運営までお問い合わせください)'}\n"
         f"スレッド: {props.get('discord_thread_url')}"
     )
 
 
 def _send_rsvp_reminder_emails(event, props):
-    """「申込み必須」イベントの事前申込み者へ、開催30分前に会場URLを再送する。"""
+    """「申込み必須」イベントの事前申込み者へ、開催直前に会場URLを再送する。"""
     if props.get("requires_rsvp") != "true":
         return
     notion_page_id = props.get("notion_page_id")
@@ -79,7 +115,7 @@ def _send_rsvp_reminder_emails(event, props):
         subject = f"【井戸端かいぎ】まもなく開催: 「{event.get('summary')}」"
         body = (
             f"{rsvp.get('name') or 'ご参加者'} 様\n\n"
-            f"「{event.get('summary')}」は30分後に開催です。\n\n"
+            f"「{event.get('summary')}」はまもなく開催です({_start_display(event)}開始)。\n\n"
             f"会場URL: {venue_url}\n\n"
             f"本イベントは公表前の研究成果を含む場合があります。会場URLや発表内容を"
             f"第三者と共有したり、録音・録画・SNS等で公開したりすることはお控えください。"
@@ -90,14 +126,7 @@ def _send_rsvp_reminder_emails(event, props):
 
 
 def main():
-    _remind(
-        DAY_BEFORE_WINDOW,
-        "day_before_reminder_sent",
-        lambda event, props: (
-            f"⏰ リマインダー: 「{event.get('summary')}」の開催まで残り1日です。\n"
-            f"スレッド: {props.get('discord_thread_url')}"
-        ),
-    )
+    _remind(DAY_BEFORE_WINDOW, "day_before_reminder_sent", _day_before_content)
     _remind(
         JUST_BEFORE_WINDOW,
         "just_before_reminder_sent",

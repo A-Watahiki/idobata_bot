@@ -12,8 +12,6 @@
 """
 import json
 import os
-from datetime import datetime, timedelta
-
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
@@ -48,7 +46,3 @@ def find_file_for_title(title: str):
     files = results.get("files", [])
     return files[0]["webViewLink"] if files else None
 
-
-def is_two_days_before(event_datetime_str: str) -> bool:
-    event_dt = datetime.fromisoformat(event_datetime_str)
-    return datetime.now().date() == (event_dt.date() - timedelta(days=2))

@@ -18,10 +18,17 @@
 //   WEBHOOK_SECRET   (任意)エンドポイント保護用の合言葉。設定した場合、
 //                    Webhook URL に `?key=<この値>` を付け、一致しない
 //                    リクエストは無視する(いたずら防止)。
+//
+// 外部スケジューラ(cron-job.orgなど)からの定期起動にも使う。GitHubのcronは
+// 間引き・60日停止があり、時刻ベースのリマインダーが取りこぼされるため。
+// スケジューラからは GET `...?key=<合言葉>&cron=1` を5分おきに叩く
+// (POSTでも可)。
 
 export default async function handler(req, res) {
-  // Notion は POST で送ってくる。それ以外は素通し。
-  if (req.method !== "POST") {
+  const isCron = req.method === "GET" && req.query.cron === "1";
+
+  // Notion は POST で送ってくる。cron 指定のない GET などは素通し。
+  if (req.method !== "POST" && !isCron) {
     return res.status(200).send("ok");
   }
 
@@ -33,7 +40,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ received: true });
   }
 
-  const body = req.body || {};
+  const body = isCron ? { type: "cron" } : req.body || {};
 
   // 1) 初回の検証リクエスト。Notion は購読作成時に
   //    { "verification_token": "secret_xxx" } を一度だけ送ってくる。

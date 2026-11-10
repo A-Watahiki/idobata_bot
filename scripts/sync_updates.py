@@ -137,7 +137,22 @@ def main():
                     f"✏️ イベント内容が更新されました。最新情報をご確認ください。",
                 )
 
+        reset_flags = {}
+        if datetime_changed:
+            # 新しい日時に対してリマインダーを送り直せるよう、送信済みフラグを戻す
+            reset_flags = {
+                "day_before_reminder_sent": "false",
+                "just_before_reminder_sent": "false",
+                "material_reminder_sent": "false",
+            }
+            if fields.get("requires_rsvp"):
+                for rsvp in notion_utils.get_rsvps_for_event(page_id):
+                    notion_utils.update_page_properties(
+                        rsvp["page_id"], {"リマインダー送信済み": {"checkbox": False}}
+                    )
+
         calendar_utils.set_extended_properties(event["id"], {
+            **reset_flags,
             "last_notify_count": str(int(current_count)),
             "notion_last_edited_time": fields.get("last_edited_time") or "",
             "snapshot_category": fields.get("category") or "",

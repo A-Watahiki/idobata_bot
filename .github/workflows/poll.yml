@@ -2,14 +2,13 @@ name: Poll Notion (Approve & Reminders)
 
 on:
   schedule:
-    # 5分おきに実行(GitHubのcronは遅延・スキップが起こりうるため、
-    # フォーム提出やステータス変更などの即応はNotion Webhook経由の
-    # repository_dispatch(下記)が担当する。cronは主に時刻ベースの
-    # リマインダー(remind_events.py)と、Webhook取りこぼしの保険。)
+    # 保険としての5分おき実行。GitHubのcronは数時間単位で間引かれることがあり、
+    # 60日間コミットがないと自動停止もされるため、定期起動の主役は外部
+    # スケジューラ(cron-job.org)→Vercel→repository_dispatch(下記)が担う。
     - cron: "*/5 * * * *"
   workflow_dispatch: {}  # 手動実行もできるようにしておく
   repository_dispatch:
-    # Vercelのwebhook-proxy(Notion Webhookの受け口)から叩かれる。
+    # Vercelのwebhook-proxyから叩かれる(Notion Webhookと外部スケジューラの両方)。
     types: [notion-webhook]
 
 # 同時に複数のポーリングが走って二重にスレッド作成しないよう直列化する
@@ -109,3 +108,18 @@ jobs:
           GOOGLE_CALENDAR_REFRESH_TOKEN: ${{ secrets.GOOGLE_CALENDAR_REFRESH_TOKEN }}
           GOOGLE_CALENDAR_ID: ${{ secrets.GOOGLE_CALENDAR_ID }}
         run: python sync_updates.py
+      - name: Run daily_check.py
+        working-directory: scripts
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_GUILD_ID: ${{ secrets.DISCORD_GUILD_ID }}
+          DISCORD_ANNOUNCE_CHANNEL_ID: ${{ secrets.DISCORD_ANNOUNCE_CHANNEL_ID }}
+          GOOGLE_CALENDAR_CLIENT_ID: ${{ secrets.GOOGLE_CALENDAR_CLIENT_ID }}
+          GOOGLE_CALENDAR_CLIENT_SECRET: ${{ secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}
+          GOOGLE_CALENDAR_REFRESH_TOKEN: ${{ secrets.GOOGLE_CALENDAR_REFRESH_TOKEN }}
+          GOOGLE_CALENDAR_ID: ${{ secrets.GOOGLE_CALENDAR_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          MATERIAL_FOLDER_ID: ${{ secrets.MATERIAL_FOLDER_ID }}
+        run: python daily_check.py
