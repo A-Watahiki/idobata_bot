@@ -65,12 +65,21 @@ def main():
             calendar_utils.mark_reminder_sent(event["id"], FLAG_KEY)
             continue
 
-        # Driveフォルダ内にそれらしいファイルがあれば、Notionに自動で書き込んで終わり
+        # Driveフォルダ内にそれらしいファイルがあれば、Notionに自動で書き込み、
+        # 告知メッセージとスレッドにも反映して終わり
         found_url = drive_utils.find_file_for_title(fields["title"])
         if found_url:
             print(f"[daily_check] {fields['title']}: found matching file in Drive, updating Notion")
             update_page_properties(fields["page_id"], {"資料リンク": {"url": found_url}})
-            calendar_utils.mark_reminder_sent(event["id"], FLAG_KEY)
+            fields["material_url"] = found_url
+            thread_id = _thread_id_from_url(thread_url)
+            discord_utils.edit_announcement_message(
+                thread_id, discord_utils.build_announcement_content(fields, props.get("venue_url"))
+            )
+            discord_utils.post_message(thread_id, discord_utils.build_material_notice(found_url, is_update=False))
+            calendar_utils.set_extended_properties(
+                event["id"], {FLAG_KEY: "true", "snapshot_material_url": found_url}
+            )
             continue
 
         print(f"[daily_check] {fields['title']}: material NOT found, sending reminder")

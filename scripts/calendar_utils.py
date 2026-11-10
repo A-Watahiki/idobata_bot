@@ -83,6 +83,9 @@ def create_event(
         "snapshot_category": fields.get("category") or "",
         "snapshot_organizer_username": fields.get("organizer_username") or "",
         "snapshot_levels": ",".join(fields.get("levels") or []),
+        # 資料リンクの追加・変更をスレッドに通知するための比較元
+        # (sync_updates.py・daily_check.py参照)。
+        "snapshot_material_url": fields.get("material_url") or "",
         # Notionの「更新通知回数」(ボタンを押すたびに+1される数値)のうち、
         # 直近処理済みの値。この値より大きくなっていれば新たにボタンが
         # 押されたとみなす(sync_updates.py参照)。作成時点のNotion側の値を

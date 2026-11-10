@@ -158,8 +158,12 @@ def _announcement_body(fields: dict, venue_url, diff: dict = None) -> str:
 
 
 def _announcement_embed(fields: dict, venue_url, diff: dict = None) -> dict:
+    material_line = (
+        f"**発表資料**: {fields['material_url']}\n\n" if fields.get("material_url") else ""
+    )
     description = (
         f"{_announcement_body(fields, venue_url, diff)}\n\n"
+        f"{material_line}"
         f"**本イベント用のNotionページ**: {notion_page_url(fields['page_id'])}\n\n"
         f"このセッションに関するお問い合わせ・質問・感想は、このスレッドにご投稿ください。"
     )
@@ -257,7 +261,9 @@ def build_todo_content(fields: dict, venue_url) -> str:
         f"　　資料共有用フォルダ: {material_folder_url}\n"
         f"　　アップロードした資料のURLは、下記の「本イベント用のNotionページ」の"
         f"「資料リンク」欄に記入してください。\n"
-        f"　　{notion_url}\n\n"
+        f"　　{notion_url}\n"
+        f"　　記入後にそのページの「更新情報をスレッドに通知する」ボタンを押すと、"
+        f"このスレッドで資料が共有されます。\n\n"
         f"□ 2. 資料のアップロードは任意ですが、2日前までに資料URLの共有が確認できない場合、"
         f"このスレッドにリマインダーが自動投稿されます。\n\n"
         f"□ 3. 前日と、開催30分前に「#🐸｜井戸端かいぎ」チャンネル全体へ、このスレッドへの"
@@ -286,6 +292,12 @@ def build_todo_content(fields: dict, venue_url) -> str:
         f"チャンネル全体にキャンセルの通知が届きます。\n\n"
         f"主催者の操作に関してご不明な点があれば、綿引({admin_mention})までお気軽にどうぞ。"
     )
+
+
+def build_material_notice(material_url: str, is_update: bool) -> str:
+    """資料リンクが追加・変更されたことをスレッドに知らせる一文。"""
+    verb = "更新" if is_update else "共有"
+    return f"📎 発表資料が{verb}されました。\n{material_url}"
 
 
 def build_participant_notice_content(fields: dict) -> str:

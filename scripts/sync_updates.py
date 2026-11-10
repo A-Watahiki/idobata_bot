@@ -19,7 +19,8 @@
 
 いずれの場合も、告知メッセージ(スレッドの最初の投稿)を編集し、種別・日時・
 主催者・対象のうち変更があった項目を取り消し線+新しい値で表示する
-(概要は自由記述の長文のため対象外)。差分の判定は、Googleカレンダーの
+(概要は自由記述の長文のため対象外)。資料リンクが追加・変更されていれば、
+告知メッセージに資料リンクの行を加え、スレッドにもURLつきで知らせる。差分の判定は、Googleカレンダーの
 extendedProperties.privateに保存してあるスナップショット(snapshot_*)と、
 現在のNotionの値を比較して行う。処理後は、スナップショットと合わせて
 「更新通知回数」の処理済みの値(last_notify_count)も更新する。
@@ -103,12 +104,24 @@ def main():
 
         diff = _build_diff(fields, props, datetime_changed, old_start)
 
-        if thread_url and diff:
-            discord_utils.edit_announcement_message(
-                _thread_id_from_url(thread_url),
-                discord_utils.build_announcement_diff_content(fields, props.get("venue_url"), diff),
+        material_url = fields.get("material_url") or ""
+        old_material_url = props.get("snapshot_material_url") or ""
+        material_changed = material_url != old_material_url
+        # 削除された場合は告知メッセージから行を消すだけで、スレッドには知らせない
+        material_notice = (
+            discord_utils.build_material_notice(material_url, is_update=bool(old_material_url))
+            if material_changed and material_url
+            else None
+        )
+
+        if thread_url and (diff or material_changed):
+            content = (
+                discord_utils.build_announcement_diff_content(fields, props.get("venue_url"), diff)
+                if diff
+                else discord_utils.build_announcement_content(fields, props.get("venue_url"))
             )
-            print(f"[sync_updates] announcement message updated with diff for: {fields.get('title')}")
+            discord_utils.edit_announcement_message(_thread_id_from_url(thread_url), content)
+            print(f"[sync_updates] announcement message updated for: {fields.get('title')}")
 
         if datetime_changed:
             print(f"[sync_updates] datetime changed for: {fields.get('title')}")
@@ -125,6 +138,8 @@ def main():
                     f"🔄 「{fields.get('title')}」の日時が変更されました。"
                     f"新しい日時: {new_display}\nスレッド: {thread_url}",
                 )
+                if material_notice:
+                    discord_utils.post_message(_thread_id_from_url(thread_url), material_notice)
         else:
             print(f"[sync_updates] content changed (not datetime) for: {fields.get('title')}")
             venue_url = props.get("venue_url")
@@ -132,10 +147,10 @@ def main():
             calendar_utils.update_event_content(event["id"], fields.get("title") or "井戸端かいぎ", description)
 
             if thread_url:
-                discord_utils.post_message(
-                    _thread_id_from_url(thread_url),
-                    f"✏️ イベント内容が更新されました。最新情報をご確認ください。",
-                )
+                message = "✏️ イベント内容が更新されました。最新情報をご確認ください。"
+                if material_notice:
+                    message += f"\n{material_notice}"
+                discord_utils.post_message(_thread_id_from_url(thread_url), message)
 
         reset_flags = {}
         if datetime_changed:
@@ -158,6 +173,7 @@ def main():
             "snapshot_category": fields.get("category") or "",
             "snapshot_organizer_username": fields.get("organizer_username") or "",
             "snapshot_levels": ",".join(fields.get("levels") or []),
+            "snapshot_material_url": material_url,
         })
 
 
