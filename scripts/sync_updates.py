@@ -31,6 +31,8 @@ import calendar_utils
 import discord_utils
 import notion_utils
 
+RECENT_PAST_DAYS = 14
+
 
 def _same_instant(a_iso: str, b_iso: str) -> bool:
     a = datetime.fromisoformat(a_iso)
@@ -74,8 +76,10 @@ def _build_diff(fields: dict, props: dict, datetime_changed: bool, old_start) ->
 
 
 def main():
-    events = calendar_utils.list_future_events_with_notion_link()
-    print(f"[sync_updates] {len(events)} future calendar event(s) linked to Notion")
+    # 開催後に資料リンクを追加してボタンを押すケースもあるため、終了から
+    # RECENT_PAST_DAYS日以内のイベントも対象にする
+    events = calendar_utils.list_future_events_with_notion_link(days_back=RECENT_PAST_DAYS)
+    print(f"[sync_updates] {len(events)} calendar event(s) linked to Notion (incl. last {RECENT_PAST_DAYS} days)")
 
     for event in events:
         props = event.get("extendedProperties", {}).get("private", {})

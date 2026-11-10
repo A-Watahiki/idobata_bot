@@ -171,15 +171,16 @@ def update_event_content(event_id: str, summary: str, description: str):
     ).execute(num_retries=3)
 
 
-def list_future_events_with_notion_link(days_ahead: int = 200) -> list:
+def list_future_events_with_notion_link(days_ahead: int = 200, days_back: int = 0) -> list:
     """今後開催予定の中で、notion_page_idが紐づいている予定を一覧する
-    (Notion側のキャンセル・削除・変更同期に使う)。
+    (Notion側のキャンセル・削除・変更同期に使う)。days_backを指定すると、
+    その日数以内に終了した予定も含める(開催後の資料共有などに対応するため)。
     """
     service = _get_service()
     calendar_id = os.environ["GOOGLE_CALENDAR_ID"]
 
     now = datetime.utcnow()
-    time_min = now.isoformat() + "Z"
+    time_min = (now - timedelta(days=days_back)).isoformat() + "Z"
     time_max = (now + timedelta(days=days_ahead)).isoformat() + "Z"
 
     events = []
